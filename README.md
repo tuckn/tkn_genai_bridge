@@ -1,4 +1,4 @@
-# Tkn GenAI Runtime — Python CLI 共通の生成AI呼び出し
+# Tuckn GenAI Runtime — Python CLI 共通の生成AI呼び出し
 
 Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
 プロンプトと JSON Schema を渡すと、検証済みの JSON オブジェクトと、モデル・利用量・実行時間の情報を返します。
@@ -15,34 +15,38 @@ Python で作成した複数の CLI から、同じ API と接続設定で生成
 
 ## 担当する範囲
 
-| 共通パッケージ | 利用する CLI |
-| --- | --- |
-| 接続先の選択、共通設定、認証方法、通信・外部プロセス | 入力ファイルの選択、分割・統合、用途に合ったプロンプト |
-| タイムアウト、例外、JSON Schema 検証、実行情報 | 出典との照合、Markdown への整形、保存・再開、処理全体の予算 |
+| Tuckn GenAI Runtimeの担当範囲                        | 本パッケージを利用する側の担当範囲                          |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| 接続先の選択、共通設定、認証方法、通信・外部プロセス | 入力ファイルの選択、分割・統合、用途に合ったプロンプト      |
+| タイムアウト、例外、JSON Schema 検証、実行情報       | 出典との照合、Markdown への整形、保存・再開、処理全体の予算 |
 
 以下の矢印は呼び出し関係です。
 接続プロファイルはモデル・接続先・認証方法をまとめた設定で、出力内容を定義するプロンプトやスキーマとは別に管理します。
 
 ```mermaid
 flowchart LR
-    A["Python CLI"] --> B["Runtime"]
+    A["Python CLI"] --> B["本Runtime"]
     C["共有接続プロファイル"] --> B
     B --> D["CLI: Codex / Claude Code / Copilot"]
-    B --> E["HTTP: Ollama / Azure OpenAI"]
+    B --> E["LiteLLM Python SDK"]
+    E --> G["Ollama / Azure OpenAI"]
     D --> F["JSON検証・実行情報"]
-    E --> F
+    G --> F
     F --> A
 ```
 
 常駐サーバーは不要です。
 接続先への呼び出しをこの Python パッケージに集約します。
-HTTP 接続は httpx を使い、現在の5種類に必要なアダプターを実装しています。
+Ollama と Azure OpenAI への生成要求には [LiteLLM Python SDK](https://docs.litellm.ai/docs/) を使います。
+共通パッケージが設定・認証・ローカル限定の確認・出力検証・実行記録を担当し、LiteLLM が API ごとの要求形式と呼び出しを担当します。
+Codex・Claude Code・GitHub Copilot は CLI アダプターで呼び出します。
+LiteLLM Proxy や Docker の起動、各 CLI での LiteLLM の直接利用は不要です。
 
 ## セットアップ
 
 Python 3.11 以上と [uv](https://docs.astral.sh/uv/) が必要です。
-Windows を主対象にしています。
-利用する接続先の CLI またはサーバーを別途導入し、認証やモデルの準備を済ませてください。
+動作確認は、Windows のみです。
+利用する接続先の CLI または生成AIサーバーを別途導入し、認証やモデルの準備を済ませてください。
 
 ### 補助CLIをインストールする
 
@@ -55,17 +59,13 @@ uv tool install .
 tkn-genai --help
 ```
 
-Azure の Microsoft Entra ID 認証を使う場合は、追加依存を含めてインストールします。
-API キー認証だけの場合、追加依存は不要です。
-
-```powershell
-uv tool install ".[azure]" --reinstall
-```
+Azure OpenAI の API キー認証と Microsoft Entra ID 認証（ブラウザー認証を含む）に必要なライブラリも、このインストールに含まれます。
+認証方法によってインストール手順を変える必要はありません。
 
 これは補助CLIの専用環境へのインストールです。
 自分の Python CLI から import する場合は、後述のとおり、そのプロジェクトにも依存関係を追加します。
 
-### 共有設定を用意する
+### 設定を行う
 
 ```powershell
 tkn-genai config init --dry-run
@@ -91,6 +91,7 @@ tkn-genai generate --no-project-config --profile codex-default --prompt-file exa
 ```
 
 dry-run は通信、認証、生成AIの呼び出し、ファイル作成を行いません。
+設定確認と dry-run では LiteLLM SDK も読み込みません。
 認証状態やモデルの利用可否、サーバー側のスキーマ対応は、本実行で確認されます。
 `will_call_provider: false` と終了コード `0` が入力検証成功の目印です。
 
@@ -162,30 +163,32 @@ print(result.record.model_dump())
 共通の `--quiet` / `--verbose` はコマンドの前に指定し、同時には使えません。
 各コマンドの設定オプションはコマンドの後に指定します。
 
-| 目的 | コマンド | 結果・副作用 |
-| --- | --- | --- |
-| 設定の作成 | `tkn-genai config init [--path PATH] [--dry-run]` | 通常は設定ファイルを新規作成 |
-| 設定元と最終値の確認 | `tkn-genai config show [--config PATH] [--profile NAME]` | 読み取りのみ。認証情報の値は解決しない |
-| 生成 | `tkn-genai generate --prompt-file PATH --schema-file PATH` | 接続先へ送信し、JSON を表示 |
-| 生成前の確認 | 上記に `--dry-run` を追加 | 通信・認証・書き込みなし |
-| バージョン確認 | `tkn-genai --version` | インストール済みの版を表示 |
+| 目的                 | コマンド                                                     | 結果・副作用                           |
+| -------------------- | ------------------------------------------------------------ | -------------------------------------- |
+| 設定の作成           | `tkn-genai config init [--path PATH] [--dry-run]`          | 通常は設定ファイルを新規作成           |
+| 設定元と最終値の確認 | `tkn-genai config show [--config PATH] [--profile NAME]`   | 読み取りのみ。認証情報の値は解決しない |
+| 生成                 | `tkn-genai generate --prompt-file PATH --schema-file PATH` | 接続先へ送信し、JSON を表示            |
+| 生成前の確認         | 上記に`--dry-run` を追加                                   | 通信・認証・書き込みなし               |
+| バージョン確認       | `tkn-genai --version`                                      | インストール済みの版を表示             |
 
 設定確認と生成には `--profile`、`--model`、`--reasoning-effort`、`--timeout-seconds`、`--no-project-config` も使えます。
 引数エラーは終了コード `2`、生成失敗は非 `0`、正常終了は `0` です。
 
 ## 対応範囲と注意点
 
-| 接続先 | 方式 | 事前に用意するもの |
-| --- | --- | --- |
-| Codex | `codex exec` | 対応オプションを持つスタンドアロンCLIとログイン |
-| Claude Code | `claude -p` | CLIと認証 |
-| GitHub Copilot | 標準入力＋silent出力 | CLIと認証 |
-| Ollama | ローカル `/api/chat` | サーバーと取得済みモデル |
-| Azure OpenAI | v1 Chat Completions | endpoint、デプロイ名、APIキーまたはEntra認証 |
+| 接続先         | 方式                                 | 事前に用意するもの                              |
+| -------------- | ------------------------------------ | ----------------------------------------------- |
+| Codex          | `codex exec`                       | 対応オプションを持つスタンドアロンCLIとログイン |
+| Claude Code    | `claude -p`                        | CLIと認証                                       |
+| GitHub Copilot | 標準入力＋silent出力                 | CLIと認証                                       |
+| Ollama         | LiteLLM SDK → ローカル`/api/chat` | サーバーと取得済みモデル                        |
+| Azure OpenAI   | LiteLLM SDK → v1 Chat Completions   | endpoint、デプロイ名、APIキーまたはEntra認証    |
 
 JSON Schema は Draft 2020-12 のオブジェクトを受け付け、生成後に元のスキーマで検証します。
 接続先が対応するスキーマの範囲は異なります。
 このパッケージは制約を自動で削除しません。
+LiteLLM への切り替えで、設定の `provider` や `model` に接頭辞を追加する必要はありません。
+本パッケージが公開する接続先は上記の5種類です。LiteLLM の全プロバイダーを直接指定する設定は提供しません。
 構造が正しくても内容の正しさや出典との一致は利用側で検証してください。
 
 `local_only: true` は Ollama だけに許可し、ループバック接続、プロキシ無効化、リダイレクト拒否、モデル情報の確認を行います。
@@ -198,8 +201,14 @@ CLI接続は専用の一時フォルダで実行し、終了時にパッケー�
 エージェント製品の完全な隔離環境を提供するものではありません。
 
 自動テストでは通信・外部CLIを置き換え、5種類の要求形式とエラー処理を確認します。
+API接続は実際の LiteLLM SDK と匿名の応答を使い、外部通信を拒否したプロセスでも確認します。
 実サービスでの生成、課金、認証、品質と Linux の実動作は未検証です。
 外部CLIのオプション変更による影響は [接続仕様](docs/reference/providers.md) を参照してください。
+
+LiteLLM は API 生成時に遅延読み込みします。初回の読み込み時間と追加の依存パッケージが必要です。
+SDK の価格表・トークナイザーは同梱データを使い、SDKログ・外部コールバック・自動切り替えを使わない設定で動作します。
+この初期化にはプロセス全体へ適用される設定があるため、利用側で LiteLLM を別途初期化せず、このパッケージに任せてください。
+詳細は [LiteLLM の利用範囲](docs/reference/providers.md#litellm-python-sdk) を参照してください。
 
 ## 更新・開発・検証
 
@@ -218,7 +227,7 @@ tkn-genai --version
 
 ```powershell
 cd "C:\path\to\tkn_genai_runtime"
-uv sync --locked --all-extras
+uv sync --locked
 uv run pytest
 uv run ruff check .
 uv run mypy src

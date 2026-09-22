@@ -8,7 +8,7 @@ from tkn_genai_runtime.providers.http import azure_headers
 
 @pytest.mark.parametrize("mode", ["default_credential", "interactive_browser"])
 def test_entra_auth_is_explicit_and_closes_credentials(mode, monkeypatch):
-    identity = pytest.importorskip("azure.identity")
+    import azure.identity as identity
     calls = []
 
     class Credential:

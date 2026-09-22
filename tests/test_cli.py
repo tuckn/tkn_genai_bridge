@@ -38,9 +38,9 @@ def test_dry_run_does_not_call_api_or_create_files(tmp_path, capsys, monkeypatch
     prompt, schema = tmp_path / "prompt.txt", tmp_path / "schema.json"
     prompt.write_text("private-prompt", encoding="utf-8")
     schema.write_text('{"type":"object"}', encoding="utf-8")
-    from tkn_genai_runtime.providers.http import HttpBackend
+    from tkn_genai_runtime.providers.litellm import LiteLLMBackend
 
-    monkeypatch.setattr(HttpBackend, "generate", lambda *args: pytest.fail("must not generate"))
+    monkeypatch.setattr(LiteLLMBackend, "generate", lambda *args: pytest.fail("must not generate"))
     before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
     assert (
         main(

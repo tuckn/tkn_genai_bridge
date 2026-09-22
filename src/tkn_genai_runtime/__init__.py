@@ -15,7 +15,7 @@ from .models import (
 )
 from .runtime import Runtime
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "AzureSettings",

@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from tkn_genai_runtime import AzureSettings, OllamaSettings, Profile, ProviderError, Runtime
-from tkn_genai_runtime.providers.http import HttpBackend
+from tkn_genai_runtime.providers.litellm import LiteLLMBackend
 
 
 def azure(**kwargs):
@@ -38,7 +38,7 @@ def test_azure_payload_key_and_usage(request_object, monkeypatch):
         return httpx.Response(200, json=azure_reply())
 
     profile = azure().model_copy(update={"max_output_tokens": 42, "reasoning_effort": "low"})
-    result = Runtime(profile, backend=HttpBackend(transport=httpx.MockTransport(handle))).generate(
+    result = Runtime(profile, backend=LiteLLMBackend(transport=httpx.MockTransport(handle))).generate(
         request_object
     )
     sent = json.loads(requests[0].content)
@@ -63,7 +63,7 @@ def test_token_callback_is_lazy_and_never_used_by_plan(request_object):
         assert request.headers["Authorization"] == "Bearer test-token"
         return httpx.Response(200, json=azure_reply())
 
-    backend = HttpBackend(transport=httpx.MockTransport(handle), token_provider=token)
+    backend = LiteLLMBackend(transport=httpx.MockTransport(handle), token_provider=token)
     runtime = Runtime(azure(auth="token_provider"), backend=backend)
     runtime.plan(request_object)
     assert not tokens
@@ -83,7 +83,9 @@ def test_http_error_has_no_body_or_secret_and_no_retry(status, request_object, m
         )
 
     with pytest.raises(ProviderError) as exc:
-        Runtime(azure(), backend=HttpBackend(transport=httpx.MockTransport(handle))).generate(request_object)
+        Runtime(azure(), backend=LiteLLMBackend(transport=httpx.MockTransport(handle))).generate(
+            request_object
+        )
     assert len(calls) == 1
     assert "sensitive-body" not in str(exc.value)
     assert exc.value.retryable == (status in {429, 500})
@@ -103,7 +105,7 @@ def test_incomplete_or_refused_azure_responses_fail(payload, request_object, mon
     monkeypatch.setenv("AZURE_OPENAI_API_KEY", "key")
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
     with pytest.raises(ProviderError):
-        Runtime(azure(), backend=HttpBackend(transport=transport)).generate(request_object)
+        Runtime(azure(), backend=LiteLLMBackend(transport=transport)).generate(request_object)
 
 
 def test_ollama_local_check_happens_before_sending_prompt(request_object):
@@ -132,7 +134,7 @@ def test_ollama_local_check_happens_before_sending_prompt(request_object):
         max_output_tokens=10,
         ollama=OllamaSettings(think=False, context_tokens=1000),
     )
-    result = Runtime(profile, backend=HttpBackend(transport=httpx.MockTransport(handle))).generate(
+    result = Runtime(profile, backend=LiteLLMBackend(transport=httpx.MockTransport(handle))).generate(
         request_object
     )
     assert [r.url.path for r in requests] == ["/api/show", "/api/chat"]
@@ -162,12 +164,14 @@ def test_local_only_fails_closed(request_object, info):
 
     profile = Profile(provider="ollama", model="alias", local_only=True)
     with pytest.raises(ProviderError, match="verified as local"):
-        Runtime(profile, backend=HttpBackend(transport=httpx.MockTransport(handle))).generate(request_object)
+        Runtime(profile, backend=LiteLLMBackend(transport=httpx.MockTransport(handle))).generate(
+            request_object
+        )
     assert len(calls) == 1 and calls[0].url.path == "/api/show"
 
 
 def test_ollama_does_not_use_environment_proxy(request_object, monkeypatch):
-    from tkn_genai_runtime.providers import http
+    from tkn_genai_runtime.providers import litellm as http
 
     original = httpx.Client
     flags = []
@@ -188,7 +192,7 @@ def test_ollama_does_not_use_environment_proxy(request_object, monkeypatch):
             },
         )
     )
-    Runtime(Profile(provider="ollama", model="m"), backend=HttpBackend(transport=transport)).generate(
+    Runtime(Profile(provider="ollama", model="m"), backend=LiteLLMBackend(transport=transport)).generate(
         request_object
     )
     assert flags == [False]
@@ -217,4 +221,4 @@ def test_missing_key_does_not_submit(request_object, monkeypatch):
         pytest.fail("must not send unauthenticated request")
 
     with pytest.raises(ProviderError):
-        Runtime(azure(), backend=HttpBackend(transport=httpx.MockTransport(fail))).generate(request_object)
+        Runtime(azure(), backend=LiteLLMBackend(transport=httpx.MockTransport(fail))).generate(request_object)

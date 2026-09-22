@@ -12,7 +12,8 @@ from .errors import GenAIError, ProviderError
 from .models import GenerationPlan, GenerationRecord, GenerationRequest, GenerationResult, Profile
 from .providers.base import Backend, ProviderResponse
 from .providers.cli import CliBackend, resolve_executable
-from .providers.http import HttpBackend, TokenProvider
+from .providers.http import TokenProvider
+from .providers.litellm import LiteLLMBackend
 from .validation import fingerprints, prepare_validator, validate_output
 
 Observer = Callable[[GenerationRecord], None]
@@ -59,7 +60,7 @@ class Runtime:
             backend = self.backend
             if backend is None:
                 backend = (
-                    HttpBackend(token_provider=self.token_provider)
+                    LiteLLMBackend(token_provider=self.token_provider)
                     if self.profile.provider in {"ollama", "azure-openai"}
                     else CliBackend()
                 )
