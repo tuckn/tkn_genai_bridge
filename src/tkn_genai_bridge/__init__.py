@@ -1,5 +1,6 @@
 """Shared structured-generation API for Python applications."""
 
+from ._version import __version__
 from .config import load_config, load_profile
 from .errors import ConfigError, GenAIError, OutputValidationError, ProviderError, RequestError
 from .models import (
@@ -11,11 +12,10 @@ from .models import (
     GenerationResult,
     OllamaSettings,
     Profile,
+    ResponseMetadata,
     Usage,
 )
 from .runtime import Runtime
-
-__version__ = "0.3.0"
 
 __all__ = [
     "AzureSettings",
@@ -31,8 +31,10 @@ __all__ = [
     "Profile",
     "ProviderError",
     "RequestError",
+    "ResponseMetadata",
     "Runtime",
     "Usage",
+    "__version__",
     "load_config",
     "load_profile",
 ]

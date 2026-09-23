@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Callable
 from contextlib import ExitStack
@@ -10,17 +11,27 @@ from typing import Any
 import httpx
 
 from ..errors import ProviderError
-from ..models import AzureSettings, Usage
+from ..models import AzureSettings, ResponseMetadata, Usage
 from ..validation import parse_object
-from .base import ProviderResponse, model_name, number
+from .base import ProviderResponse, model_name, number, preserve_metadata
 
 TokenProvider = Callable[[], str]
+
+
+def _close_credential(credential: Any) -> None:
+    try:
+        credential.close()
+    except Exception:
+        # Cleanup must not mask the result or leak SDK exception contents.
+        logging.getLogger(__name__).warning("Azure credential cleanup failed")
 
 
 def azure_headers(
     settings: AzureSettings,
     token_provider: TokenProvider | None,
     stack: ExitStack,
+    *,
+    credentials: dict[tuple[str, str | None], Any] | None = None,
 ) -> dict[str, str]:
     if settings.auth == "api_key":
         value = os.getenv(settings.api_key_env)
@@ -47,13 +58,21 @@ def azure_headers(
             code="missing_dependency",
         ) from None
     try:
-        if settings.auth == "interactive_browser":
-            kwargs = {"tenant_id": settings.tenant_id} if settings.tenant_id else {}
-            credential: Any = InteractiveBrowserCredential(**kwargs)
-        else:
-            credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
-        stack.callback(credential.close)
+        key = (settings.auth, settings.tenant_id)
+        credential = credentials.get(key) if credentials is not None else None
+        if credential is None:
+            if settings.auth == "interactive_browser":
+                kwargs = {"tenant_id": settings.tenant_id} if settings.tenant_id else {}
+                credential = InteractiveBrowserCredential(**kwargs)
+            else:
+                credential = DefaultAzureCredential(exclude_interactive_browser_credential=True)
+            stack.callback(_close_credential, credential)
+            if credentials is not None:
+                credentials[key] = credential
+        # Ask the credential each time so its cache/refresh policy handles token expiry.
         token = credential.get_token(settings.token_scope).token
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError("empty token")
         return {"Authorization": "Bearer " + token}
     except Exception:
         raise ProviderError(
@@ -90,22 +109,12 @@ def post(
 def provider_response(payload: dict[str, Any], *, local: bool) -> ProviderResponse:
     """Preserve server-reported metadata and reject incomplete responses before SDK normalization."""
     if local:
-        if payload.get("done") is not True or payload.get("done_reason") != "stop":
-            raise ProviderError("Ollama returned an incomplete response", code="incomplete_response")
-        message = payload.get("message")
         usage = Usage(
             input_tokens=number(payload.get("prompt_eval_count")),
             output_tokens=number(payload.get("eval_count")),
             cached_input_tokens=number(payload.get("prompt_eval_cached_count")),
         )
     else:
-        choices = payload.get("choices")
-        if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
-            raise ProviderError("Azure returned an unexpected response shape", code="invalid_response")
-        choice = choices[0]
-        message = choice.get("message")
-        if choice.get("finish_reason") != "stop":
-            raise ProviderError("Azure returned an incomplete response", code="incomplete_response")
         counts = payload.get("usage") or {}
         if not isinstance(counts, dict):
             counts = {}
@@ -119,8 +128,22 @@ def provider_response(payload: dict[str, Any], *, local: bool) -> ProviderRespon
             else None,
             reasoning_tokens=number(details.get("reasoning_tokens")) if isinstance(details, dict) else None,
         )
-    if not isinstance(message, dict) or not isinstance(message.get("content"), str):
-        raise ProviderError("API response has no text content", code="invalid_response")
-    if message.get("refusal") or message.get("tool_calls"):
-        raise ProviderError("API returned a refusal or tool call", code="incomplete_response")
-    return ProviderResponse(parse_object(message["content"]), model_name(payload.get("model")), usage)
+    metadata = ResponseMetadata(response_model=model_name(payload.get("model")), usage=usage)
+    with preserve_metadata(metadata):
+        if local:
+            if payload.get("done") is not True or payload.get("done_reason") != "stop":
+                raise ProviderError("Ollama returned an incomplete response", code="incomplete_response")
+            message = payload.get("message")
+        else:
+            choices = payload.get("choices")
+            if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
+                raise ProviderError("Azure returned an unexpected response shape", code="invalid_response")
+            choice = choices[0]
+            message = choice.get("message")
+            if choice.get("finish_reason") != "stop":
+                raise ProviderError("Azure returned an incomplete response", code="incomplete_response")
+        if isinstance(message, dict) and (message.get("refusal") or message.get("tool_calls")):
+            raise ProviderError("API returned a refusal or tool call", code="incomplete_response")
+        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+            raise ProviderError("API response has no text content", code="invalid_response")
+        return ProviderResponse(parse_object(message["content"]), metadata.response_model, usage)

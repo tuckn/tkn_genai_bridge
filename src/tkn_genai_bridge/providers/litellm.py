@@ -14,7 +14,7 @@ from typing import Any
 import httpx
 
 from ..errors import GenAIError, ProviderError
-from ..models import GenerationRequest, OllamaSettings, Profile
+from ..models import GenerationRequest, OllamaSettings, Profile, ResponseMetadata
 from ..validation import parse_object
 from .base import ProviderResponse
 from .cli import schema_prompt
@@ -105,13 +105,30 @@ class LiteLLMBackend:
     ) -> None:
         self.transport = transport
         self.token_provider = token_provider
+        self._auth_stack = ExitStack()
+        self._credentials: dict[tuple[str, str | None], Any] = {}
+        self._closed = False
+
+    def close(self) -> None:
+        if not self._closed:
+            self._closed = True
+            self._auth_stack.close()
+            self._credentials.clear()
 
     def generate(self, profile: Profile, request: GenerationRequest) -> ProviderResponse:
+        if self._closed:
+            raise ProviderError("backend is closed", code="runtime_closed")
         local = profile.provider == "ollama"
         timeout = httpx.Timeout(profile.timeout_seconds, connect=min(10, profile.timeout_seconds))
         guard = _ResponseGuard(local=local)
         with ExitStack() as stack:
-            headers = azure_headers(profile.azure, self.token_provider, stack) if profile.azure else {}
+            headers = (
+                azure_headers(
+                    profile.azure, self.token_provider, self._auth_stack, credentials=self._credentials
+                )
+                if profile.azure
+                else {}
+            )
             client = stack.enter_context(
                 httpx.Client(
                     timeout=timeout,
@@ -217,19 +234,28 @@ class LiteLLMBackend:
             except Exception as exc:
                 if guard.error is not None:
                     raise guard.error from None
+                error: ProviderError
                 if isinstance(exc, sdk.Timeout):
-                    raise ProviderError(
+                    error = ProviderError(
                         "API timed out; submission and billing may be unknown",
                         code="timeout",
                         submission_unknown=True,
-                    ) from None
-                if isinstance(exc, sdk.APIConnectionError):
-                    raise ProviderError(
+                    )
+                elif isinstance(exc, sdk.APIConnectionError):
+                    error = ProviderError(
                         "API transport failed; submission and billing may be unknown",
                         code="transport",
                         submission_unknown=True,
-                    ) from None
-                raise ProviderError("LiteLLM generation failed", code="sdk_error") from None
+                    )
+                else:
+                    error = ProviderError("LiteLLM generation failed", code="sdk_error")
+                if guard.response is not None:
+                    error.metadata = ResponseMetadata(
+                        response_model=guard.response.response_model, usage=guard.response.usage
+                    )
+                raise error from None
+            if guard.error is not None:
+                raise guard.error
             if guard.response is None:
                 raise ProviderError("API returned no response", code="invalid_response")
             return guard.response

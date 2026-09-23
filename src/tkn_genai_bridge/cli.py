@@ -110,12 +110,12 @@ def main(argv: list[str] | None = None) -> int:
                         "schema file must contain one strict JSON object", code="invalid_schema"
                     ) from None
                 request = GenerationRequest(prompt=prompt, output_schema=schema)
-                runtime = Runtime(resolved.profile())
-                if args.dry_run:
-                    result = runtime.plan(request, check_executable=True).model_dump()
-                else:
-                    logger.info("Generating with %s", runtime.profile.provider)
-                    result = runtime.generate(request).model_dump()
+                with Runtime(resolved.profile()) as runtime:
+                    if args.dry_run:
+                        result = runtime.plan(request, check_executable=True).model_dump()
+                    else:
+                        logger.info("Generating with %s", runtime.profile.provider)
+                        result = runtime.generate(request).model_dump()
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
         logger.log(SUCCESS, "Completed")
         return 0

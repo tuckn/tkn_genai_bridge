@@ -161,12 +161,16 @@ def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
         socket.socketpair = pair
         socket.socket.connect = lambda *a, **kw: guarded_connect(original_connect, *a, **kw)
         socket.socket.connect_ex = lambda *a, **kw: guarded_connect(original_connect_ex, *a, **kw)
-        from tkn_genai_bridge import GenerationRequest, Runtime, Profile
+        from tkn_genai_bridge import AzureSettings, GenerationRequest, OutputValidationError, Runtime, Profile
         from tkn_genai_bridge.providers.litellm import LiteLLMBackend
         import httpx
         calls = []
         def handle(request):
             calls.append(request.url.path)
+            if request.url.path == "/openai/v1/chat/completions":
+                return httpx.Response(200, json={"model": "azure-actual",
+                    "choices": [{"finish_reason": "stop", "message": {"content": "invalid JSON"}}],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 20}})
             if request.url.path == "/api/show":
                 return httpx.Response(200, json={"model_info": {"general.architecture": "fixture"}})
             return httpx.Response(200, json={"done": True, "done_reason": "stop",
@@ -174,12 +178,24 @@ def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
         runtime = Runtime(Profile(provider="ollama", model="offline-fixture", local_only=True),
                           backend=LiteLLMBackend(transport=httpx.MockTransport(handle)))
         request = GenerationRequest(prompt="synthetic", output_schema={"type": "object"})
+        azure_backend = LiteLLMBackend(transport=httpx.MockTransport(handle))
+        azure_runtime = Runtime(Profile(provider="azure-openai", model="deployment",
+            azure=AzureSettings(endpoint="https://example.openai.azure.com/openai/v1")),
+            backend=azure_backend)
         assert not runtime.plan(request).will_call_provider
+        assert not azure_runtime.plan(request).will_call_provider
         assert "litellm" not in sys.modules and not calls
         assert runtime.generate(request).data == {}
+        try:
+            azure_runtime.generate(request)
+        except OutputValidationError as exc:
+            assert exc.record.response_model == "azure-actual"
+            assert exc.record.usage.output_tokens == 20
+        else:
+            raise AssertionError("invalid output accepted")
         # no-log handlers may finish on an SDK worker thread.
         time.sleep(0.2)
-        assert calls == ["/api/show", "/api/chat"], calls
+        assert calls == ["/api/show", "/api/chat", "/openai/v1/chat/completions"], calls
         assert not attempts, attempts
         assert "SHOULD_NOT_LOAD_DOTENV" not in os.environ
         print(json.dumps({"ok": True}))
@@ -193,6 +209,7 @@ def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
         CUSTOM_TIKTOKEN_CACHE_DIR=str(tmp_path / "token-cache"),
         LITELLM_LOG="DEBUG",
         LITELLM_LOCAL_MODEL_COST_MAP="False",
+        AZURE_OPENAI_API_KEY="synthetic-key",
         PYTHONDONTWRITEBYTECODE="1",
     )
     result = subprocess.run(
@@ -209,3 +226,23 @@ def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
     assert not result.stderr
     assert not (tmp_path / "home").exists()
     assert not (tmp_path / "token-cache").exists()
+
+
+def test_litellm_dependency_stays_inside_adapter():
+    """Public contracts must remain usable without importing SDK-specific types."""
+    import ast
+    import importlib.resources
+
+    root = importlib.resources.files("tkn_genai_bridge")
+    for path in [*root.iterdir(), *root.joinpath("providers").iterdir()]:
+        if not path.name.endswith(".py") or path.name == "litellm.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                assert all(not alias.name.startswith("litellm") for alias in node.names), path.name
+            elif isinstance(node, ast.ImportFrom) and not node.level:
+                assert not (node.module or "").startswith("litellm"), path.name
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                if node.func.attr == "import_module" and node.args and isinstance(node.args[0], ast.Constant):
+                    assert not str(node.args[0].value).startswith("litellm"), path.name

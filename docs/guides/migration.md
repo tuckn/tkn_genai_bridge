@@ -39,22 +39,23 @@ from tkn_genai_bridge import GenerationRequest, Runtime, load_profile
 
 # app_config、build_prompt、output_schema は利用側アプリで管理する値です。
 profile = load_profile(app_config.genai_profile)
-runtime = Runtime(profile)
 request = GenerationRequest(
     prompt=build_prompt(source),
     output_schema=output_schema,
 )
-if dry_run:
-    plan = runtime.plan(request)
-else:
-    # この直前に利用側の回数・料金上限を確認します。
-    result = runtime.generate(request)
-    # 元データとの対応を検証してから既存の保存処理へ渡します。
-    validate_against_source(result.data, source)
-    save_validated_output(result.data, result.record)
+with Runtime(profile) as runtime:
+    if dry_run:
+        plan = runtime.plan(request)
+    else:
+        # この直前に利用側の回数・料金上限を確認します。
+        result = runtime.generate(request)
+        # 元データとの対応を検証してから既存の保存処理へ渡します。
+        validate_against_source(result.data, source)
+        save_validated_output(result.data, result.record)
 ```
 
 これは利用側への組み込み位置を示す例で、未定義の関数は利用側の処理に置き換えます。
+複数入力を処理する場合は `with Runtime(...)` の内側でループし、認証オブジェクトを再利用してください。
 動く最小例は [README](../../README.md#python-cli-に組み込む) にあります。
 
 ## 互換性上の確認点
@@ -67,4 +68,7 @@ else:
 - Azureの既存ブラウザー認証キャッシュは自動移動しません。継続利用する場合は既存認証関数を `token_provider` コールバックとして渡せます。
 - 共有設定は `~/.tkn/genai_bridge/config.yaml` です。既存のアプリ設定を同じ場所へコピーしないでください。
 - usageが取得できなかった場合をゼロとして扱わないでください。失敗時の記録は `GenAIError.record` から取得できます。
+- 不正なJSON、途中終了、拒否でも、取得済みのusage・モデル情報は失敗記録に残ります。未受信・解析不能な応答の情報は `null` のままです。
+- 再生成判定には `bridge_version`、`generation_settings_sha256`、`prompt_sha256`、`schema_sha256` を利用できます。保存・再利用の可否と独自backendの追加条件は利用側で判断します。
+- `load_profile()` は選択名を保持します。直接作った `Profile` に名前を付ける場合は `Runtime(profile, profile_name="app-profile")` を指定します。
 - 自動再試行・プロバイダー切り替えはありません。利用側の再試行は回数、失敗条件、課金の可能性を明示して維持します。

@@ -15,6 +15,6 @@ request = GenerationRequest(
     prompt=(here / "prompt.txt").read_text(encoding="utf-8"),
     output_schema=json.loads((here / "output.schema.json").read_text(encoding="utf-8")),
 )
-runtime = Runtime(load_profile(args.profile))
-result = runtime.plan(request) if args.dry_run else runtime.generate(request)
+with Runtime(load_profile(args.profile)) as runtime:
+    result = runtime.plan(request) if args.dry_run else runtime.generate(request)
 print(result.model_dump_json(indent=2))

@@ -146,7 +146,6 @@ uv run python -c "import tkn_genai_bridge; print(tkn_genai_bridge.__version__)"
 ```python
 from tkn_genai_bridge import GenerationRequest, Runtime, load_profile
 
-runtime = Runtime(load_profile("codex-default"))
 request = GenerationRequest(
     prompt="「火曜日に公開し、金曜日に意見を確認する」を一文で要約してください。",
     output_schema={
@@ -156,11 +155,17 @@ request = GenerationRequest(
         "additionalProperties": False,
     },
 )
-print(runtime.plan(request).model_dump())  # 通信せずに検証
-result = runtime.generate(request)  # 生成AIを呼び出す
+with Runtime(load_profile("codex-default")) as runtime:
+    print(runtime.plan(request).model_dump())  # 通信せずに検証
+    result = runtime.generate(request)  # 生成AIを呼び出す
 print(result.data["summary"])
 print(result.record.model_dump())
 ```
+
+連続生成では同じ `Runtime` を使い、ループの外側を `with` で囲みます。
+Azureの認証オブジェクトを再利用し、終了時に解放します。明示的な `runtime.close()` も使えます。
+失敗時も、取得済みのモデル情報・利用量は `GenAIError.record` から確認できます。
+記録と dry-run の結果には、Bridgeのバージョン、使用プロファイル名、認証情報を除く生成条件のハッシュが含まれます。
 
 ライブラリの `load_profile()` は共有設定と明示された追加ファイルを読み込みます。
 利用側CLIの `./.tkn/config.yaml` は自動では読みません。

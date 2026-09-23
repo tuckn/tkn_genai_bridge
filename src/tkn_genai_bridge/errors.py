@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .models import GenerationRecord
+    from .models import GenerationRecord, ResponseMetadata
 
 
 class GenAIError(RuntimeError):
@@ -15,6 +15,7 @@ class GenAIError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.record: GenerationRecord | None = None
+        self.metadata: ResponseMetadata | None = None
 
 
 class ConfigError(GenAIError):

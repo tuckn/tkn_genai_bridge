@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 Provider = Literal["codex", "claude-code", "github-copilot", "ollama", "azure-openai"]
 PROVIDER_NAMES = {
@@ -104,6 +104,13 @@ class AzureSettings(StrictModel):
 
 
 class Profile(StrictModel):
+    _profile_name: str | None = PrivateAttr(default=None)
+
+    @property
+    def profile_name(self) -> str | None:
+        """Selected configuration name, independent of serialized profile settings."""
+        return self._profile_name
+
     provider: Provider = "codex"
     model: str | None = None
     reasoning_effort: str | None = None
@@ -182,11 +189,19 @@ class Usage(StrictModel):
     reasoning_tokens: int | None = None
 
 
-class GenerationRecord(StrictModel):
-    provider: Provider
-    requested_model: str | None
+class ResponseMetadata(StrictModel):
+    """Server-reported information retained even when output cannot be accepted."""
+
     response_model: str | None = None
     usage: Usage = Field(default_factory=Usage)
+
+
+class GenerationRecord(ResponseMetadata):
+    provider: Provider
+    requested_model: str | None
+    bridge_version: str | None = None
+    profile_name: str | None = None
+    generation_settings_sha256: str | None = None
     started_at: str
     duration_seconds: float
     status: Literal["succeeded", "failed"]
@@ -201,6 +216,9 @@ class GenerationResult(StrictModel):
 
 
 class GenerationPlan(StrictModel):
+    bridge_version: str | None = None
+    profile_name: str | None = None
+    generation_settings_sha256: str | None = None
     provider: Provider
     model: str | None
     local_only: bool

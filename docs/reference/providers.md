@@ -15,6 +15,9 @@ LiteLLM Proxy・Router・常駐サービスは使用しません。
 
 LiteLLMは1.102系を対象とし、`uv.lock` では検証済みの1.102.0を固定しています。
 SDKの更新時は通信形式と副作用の回帰テストを実行してください。
+SDK固有のimport・要求オプション・内部HTTPHandlerへの依存は `providers/litellm.py` 内に限定します。
+更新検証には `tests/test_litellm.py` の実SDK・外部通信拒否テストと、
+`tests/test_failure_metadata.py` の成功応答を受理できない場合の情報保持テストを含めます。
 CLIアダプターや `plan()`、設定コマンドではSDKをimportしません。
 
 API生成時には次の方針で初期化します。
@@ -90,10 +93,17 @@ remote_model / remote_host がある場合、またはローカルの model_info
 出力形式は `json_schema`、`strict: true`、`store: false`、`stream: false` です。
 
 認証は環境変数のAPIキー、Azure IdentityによるEntra ID認証、利用側コールバックから選べます。
+Entra ID認証オブジェクトはRuntime単位で遅延作成し、連続生成で再利用します。
+`get_token()` を生成ごとに呼び、SDKのメモリー内キャッシュと更新処理を使います。
+`with Runtime(...)` または `close()` で終了処理を行ってください。
+Bridgeは新たな永続トークンキャッシュを設定しません。別Runtime・別プロセス間の認証共有は行いません。
+APIキーは生成ごとに環境変数から取得し、`token_provider` も生成ごとに呼び出します。
+認証キャッシュと解放の仕様は [Azure Identity公式](https://learn.microsoft.com/en-us/python/api/azure-identity/azure.identity.interactivebrowsercredential?view=azure-python) を参照してください。
 `store: false` はこの要求の保存オプションであり、サービス全体の保持方針を保証しません。
 
 `finish_reason: stop`、拒否なし、ツール呼び出しなし、テキスト本文ありを成功応答の条件にします。
 その後に共通のJSON・スキーマ検証を行います。
+検証前に取得したモデル名・利用量は、失敗時も実行記録へ引き継ぎます。
 URLリダイレクトは追跡しません。
 システムのHTTPSプロキシ設定は使用します。
 

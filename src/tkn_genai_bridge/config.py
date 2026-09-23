@@ -139,9 +139,11 @@ class ResolvedConfig:
     def profile(self, name: str | None = None) -> Profile:
         selected = name if name is not None else self.config.default_profile
         try:
-            return self.config.profiles[selected]
+            profile = self.config.profiles[selected].model_copy(deep=True)
         except KeyError:
             raise ConfigError("profile was not found; inspect config show", code="unknown_profile") from None
+        profile._profile_name = selected
+        return profile
 
 
 def load_config(
@@ -208,9 +210,11 @@ def load_profile(
         return profile
     _fragment(overrides, Profile)
     try:
-        return Profile.model_validate(_merge(profile.model_dump(), overrides))
+        updated = Profile.model_validate(_merge(profile.model_dump(), overrides))
     except ValidationError:
         raise ConfigError("invalid profile overrides", code="invalid_config") from None
+    updated._profile_name = profile.profile_name
+    return updated
 
 
 def initialize_config(path: Path | None = None, *, dry_run: bool = False) -> dict[str, str]:

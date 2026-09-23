@@ -59,6 +59,8 @@ def test_dry_run_does_not_call_api_or_create_files(tmp_path, capsys, monkeypatch
     )
     output = capsys.readouterr()
     assert json.loads(output.out)["will_call_provider"] is False
+    assert json.loads(output.out)["profile_name"] == "local"
+    assert len(json.loads(output.out)["generation_settings_sha256"]) == 64
     assert "private-prompt" not in output.out + output.err
     assert before == {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
 
@@ -177,6 +179,7 @@ def test_real_entrypoint_with_loopback_fixture(tmp_path):
         assert data["data"] == {"summary": "日本語の結果"}
         assert data["record"]["response_model"] == "fixture-model"
         assert data["record"]["usage"]["input_tokens"] == 8
+        assert data["record"]["profile_name"] == "local"
         assert "[SUCCESS]" in completed.stderr
         assert [path for path, _ in requests] == ["/api/show", "/api/chat"]
         assert not (tmp_path / "isolated-home").exists()

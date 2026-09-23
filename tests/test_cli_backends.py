@@ -12,7 +12,7 @@ from tkn_genai_bridge.providers import cli
 def test_commands_stdin_and_private_directory(provider, request_object, monkeypatch):
     captures = []
 
-    def run(command, prompt, cwd, timeout):
+    def run(command, prompt, cwd, timeout, **kwargs):
         captures.append((command, prompt, cwd, timeout))
         assert cwd != Path.cwd()
         assert request_object.prompt not in command
@@ -64,7 +64,7 @@ def test_commands_stdin_and_private_directory(provider, request_object, monkeypa
 
 
 def test_codex_missing_output_is_failure(request_object, monkeypatch):
-    monkeypatch.setattr(cli, "run_process", lambda *args: "")
+    monkeypatch.setattr(cli, "run_process", lambda *args, **kwargs: "")
     with pytest.raises(ProviderError, match="output file"):
         Runtime(Profile(cli=CliSettings(executable=sys.executable))).generate(request_object)
 
@@ -78,7 +78,7 @@ def test_codex_missing_output_is_failure(request_object, monkeypatch):
     ],
 )
 def test_claude_unsuccessful_envelope(request_object, envelope, monkeypatch):
-    monkeypatch.setattr(cli, "run_process", lambda *args: json.dumps(envelope))
+    monkeypatch.setattr(cli, "run_process", lambda *args, **kwargs: json.dumps(envelope))
     profile = Profile(provider="claude-code", cli=CliSettings(executable=sys.executable))
     with pytest.raises(ProviderError):
         Runtime(profile).generate(request_object)

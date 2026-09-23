@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from ..models import GenerationRequest, Profile, Usage
+from ..errors import GenAIError
+from ..models import GenerationRequest, Profile, ResponseMetadata, Usage
 
 
 @dataclass
@@ -17,6 +20,16 @@ class ProviderResponse:
 
 class Backend(Protocol):
     def generate(self, profile: Profile, request: GenerationRequest) -> ProviderResponse: ...
+
+
+@contextmanager
+def preserve_metadata(metadata: ResponseMetadata) -> Iterator[None]:
+    """Carry only typed metadata across output parsing and validation failures."""
+    try:
+        yield
+    except GenAIError as exc:
+        exc.metadata = metadata
+        raise
 
 
 def number(value: Any) -> int | None:

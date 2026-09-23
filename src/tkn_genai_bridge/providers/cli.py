@@ -13,10 +13,10 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from ..errors import ProviderError
-from ..models import GenerationRequest, Profile, Usage
+from ..errors import GenAIError, ProviderError
+from ..models import GenerationRequest, Profile, ResponseMetadata, Usage
 from ..validation import parse_object
-from .base import ProviderResponse, model_name, number
+from .base import ProviderResponse, model_name, number, preserve_metadata
 
 _EXECUTABLES = {"codex": "codex", "claude-code": "claude", "github-copilot": "copilot"}
 
@@ -95,7 +95,9 @@ def _stop_process(process: subprocess.Popen[str]) -> None:
                 pipe.close()
 
 
-def run_process(command: list[str], prompt: str, cwd: Path, timeout: float) -> str:
+def run_process(
+    command: list[str], prompt: str, cwd: Path, timeout: float, *, provider: str | None = None
+) -> str:
     try:
         process = subprocess.Popen(
             command,
@@ -126,11 +128,20 @@ def run_process(command: list[str], prompt: str, cwd: Path, timeout: float) -> s
             "cannot start provider; check executable and permissions", code="process_start"
         ) from None
     if process.returncode:
-        raise ProviderError(
+        error = ProviderError(
             f"provider exited with status {process.returncode}; check its login and model",
             code="process_exit",
             submission_unknown=True,
         )
+        if provider == "codex":
+            model, usage = _codex_metadata(stdout)
+            error.metadata = ResponseMetadata(response_model=model, usage=usage)
+        elif provider == "claude-code":
+            try:
+                error.metadata = _claude_metadata(parse_object(stdout))
+            except GenAIError:
+                pass  # A malformed envelope has no reliably extractable metadata.
+        raise error
     return stdout
 
 
@@ -152,6 +163,24 @@ def _codex_metadata(stdout: str) -> tuple[str | None, Usage]:
         output_tokens=number(counts.get("output_tokens")),
         cached_input_tokens=number(counts.get("cached_input_tokens")),
         reasoning_tokens=number(counts.get("reasoning_output_tokens")),
+    )
+
+
+def _claude_metadata(envelope: dict[str, Any]) -> ResponseMetadata:
+    counts = envelope.get("usage") or {}
+    if not isinstance(counts, dict):
+        counts = {}
+    model_usage = envelope.get("modelUsage")
+    model = model_name(envelope.get("model"))
+    if model is None and isinstance(model_usage, dict) and len(model_usage) == 1:
+        model = model_name(next(iter(model_usage)))
+    return ResponseMetadata(
+        response_model=model,
+        usage=Usage(
+            input_tokens=number(counts.get("input_tokens")),
+            output_tokens=number(counts.get("output_tokens")),
+            cached_input_tokens=number(counts.get("cache_read_input_tokens")),
+        ),
     )
 
 
@@ -225,37 +254,27 @@ class CliBackend:
                 command += ["--effort", profile.reasoning_effort]
             if profile.provider == "codex":
                 command.append("-")
-            stdout = run_process(command, prompt, cwd, profile.timeout_seconds)
+            stdout = run_process(command, prompt, cwd, profile.timeout_seconds, provider=profile.provider)
             if profile.provider == "codex":
-                try:
-                    output = output_path.read_text(encoding="utf-8-sig")
-                except (OSError, UnicodeError):
-                    raise ProviderError(
-                        "Codex completed without a readable output file", code="missing_output"
-                    ) from None
                 model, usage = _codex_metadata(stdout)
-                return ProviderResponse(parse_object(output), model, usage)
+                with preserve_metadata(ResponseMetadata(response_model=model, usage=usage)):
+                    try:
+                        output = output_path.read_text(encoding="utf-8-sig")
+                    except (OSError, UnicodeError):
+                        raise ProviderError(
+                            "Codex completed without a readable output file", code="missing_output"
+                        ) from None
+                    return ProviderResponse(parse_object(output), model, usage)
             envelope = parse_object(stdout)
             if profile.provider == "github-copilot":
                 return ProviderResponse(envelope)  # Silent text mode has no reliable usage/model metadata.
-            if envelope.get("is_error") or envelope.get("subtype") not in {None, "success"}:
-                raise ProviderError("Claude Code returned an unsuccessful result", code="incomplete_response")
-            data = envelope.get("structured_output")
-            if not isinstance(data, dict):
-                raise ProviderError("Claude Code returned no structured_output", code="missing_output")
-            counts = envelope.get("usage") or {}
-            if not isinstance(counts, dict):
-                counts = {}
-            model_usage = envelope.get("modelUsage")
-            model = model_name(envelope.get("model"))
-            if model is None and isinstance(model_usage, dict) and len(model_usage) == 1:
-                model = model_name(next(iter(model_usage)))
-            return ProviderResponse(
-                data,
-                model,
-                Usage(
-                    input_tokens=number(counts.get("input_tokens")),
-                    output_tokens=number(counts.get("output_tokens")),
-                    cached_input_tokens=number(counts.get("cache_read_input_tokens")),
-                ),
-            )
+            metadata = _claude_metadata(envelope)
+            with preserve_metadata(metadata):
+                if envelope.get("is_error") or envelope.get("subtype") not in {None, "success"}:
+                    raise ProviderError(
+                        "Claude Code returned an unsuccessful result", code="incomplete_response"
+                    )
+                data = envelope.get("structured_output")
+                if not isinstance(data, dict):
+                    raise ProviderError("Claude Code returned no structured_output", code="missing_output")
+                return ProviderResponse(data, metadata.response_model, metadata.usage)
