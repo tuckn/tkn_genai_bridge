@@ -54,6 +54,11 @@ def parser() -> argparse.ArgumentParser:
     generate.add_argument("--prompt-file", required=True, type=Path, help="UTF-8 の入力プロンプト")
     generate.add_argument("--schema-file", required=True, type=Path, help="UTF-8 の JSON Schema")
     generate.add_argument(
+        "--estimate-output-tokens",
+        type=int,
+        help="dry-run の出力token仮定値。生成条件や予算上限は変更しない",
+    )
+    generate.add_argument(
         "--dry-run",
         action="store_true",
         help="設定・入力・実行ファイルを検証。通信・認証・AI呼び出し・ファイル作成なし",
@@ -84,7 +89,11 @@ def main(argv: list[str] | None = None) -> int:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
-    args = parser().parse_args(argv)
+    argument_parser = parser()
+    args = argument_parser.parse_args(argv)
+    if args.command == "generate" and args.estimate_output_tokens is not None:
+        if not args.dry_run or args.estimate_output_tokens < 0:
+            argument_parser.error("--estimate-output-tokens requires --dry-run and a non-negative integer")
     logger = configure_logging(quiet=args.quiet, verbose=args.verbose)
     result: dict[str, Any]
     try:
@@ -112,7 +121,9 @@ def main(argv: list[str] | None = None) -> int:
                 request = GenerationRequest(prompt=prompt, output_schema=schema)
                 with Runtime(resolved.profile()) as runtime:
                     if args.dry_run:
-                        result = runtime.plan(request, check_executable=True).model_dump()
+                        result = runtime.plan(
+                            request, check_executable=True, output_tokens=args.estimate_output_tokens
+                        ).model_dump()
                     else:
                         logger.info("Generating with %s", runtime.profile.provider)
                         result = runtime.generate(request).model_dump()

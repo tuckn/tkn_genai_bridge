@@ -2,6 +2,7 @@
 
 Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
 プロンプトと JSON Schema を渡すと、検証済みの JSON オブジェクトと、モデル・利用量・実行時間の情報を返します。
+生成前のtoken概算と、設定した参考単価によるコスト概算も通信なしで計算できます。
 
 利用側の CLI は、プロンプトと期待する出力形式（JSON Schema）を用意し、接続プロファイルを指定して Bridge を呼び出します。
 接続プロファイルを変えることで、同じ呼び出し方で Codex、Claude Code、GitHub Copilot、Ollama、Azure OpenAI を利用できます。
@@ -30,7 +31,8 @@ sequenceDiagram
 | Tuckn GenAI Bridgeの担当範囲                        | 本パッケージを利用する側の担当範囲                          |
 | ---------------------------------------------------- | ----------------------------------------------------------- |
 | 接続先の選択、共通設定、認証方法、通信・外部プロセス | 入力ファイルの選択、分割・統合、用途に合ったプロンプト      |
-| タイムアウト、例外、JSON Schema 検証、実行情報       | 出典との照合、Markdown への整形、保存・再開、処理全体の予算 |
+| タイムアウト、例外、JSON Schema 検証、実行情報       | 出典との照合、Markdown への整形、保存・再開 |
+| token概算、参考単価の設定、tokenからの金額計算 | 許容額・回数・tokenの上限、実行可否、処理全体の予算 |
 
 以下の矢印は呼び出し関係です。
 接続プロファイルはモデル・接続先・認証方法をまとめた設定で、出力内容を定義するプロンプトやスキーマとは別に管理します。
@@ -175,6 +177,25 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 実用のプロンプトとスキーマは利用側パッケージのリソースに置いてください。
 実行できるサンプルは [examples/use_runtime.py](examples/use_runtime.py)、例外と結果の契約は [Python API](docs/reference/api.md) にあります。
 
+## token・コストを確認する
+
+`runtime.plan(request)` は `token_estimate` と `cost_estimate` を返します。
+入力tokenは、プロンプト・スキーマなどのUTF-8バイト数に余裕分を加えた粗い概算です。
+出力tokenは `max_output_tokens`、または `plan(request, output_tokens=1000)` の仮定値を使います。
+実際の使用量や料金の上限を保証する値ではありません。
+
+参考単価は、共有設定の `profiles.<name>.pricing.<model>` に通貨・基準日・100万tokenあたりの価格を設定します。
+Azureではモデル名の代わりにデプロイ名をキーにします。単価の取得・更新や為替換算は行いません。
+設定例と詳しい計算方法は [コスト概算](docs/reference/costs.md) を参照してください。
+
+生成後は `result.record.usage` に取得できたtoken数、`result.record.cost_estimate` に参考額が入ります。
+料金を更新しても保存済みのtoken数から `estimate_cost(usage, pricing)` で再計算できます。
+金額を計算できない場合は `amount: null` と理由を返します。未設定を無料とは扱いません。
+実行するか、上限超過で止めるかは利用側CLIが決めます。
+
+補助CLIの `generate --dry-run` でも同じ情報を表示します。
+`--estimate-output-tokens 1000` を追加すると、生成設定を変えずに出力tokenの仮定値を指定できます。
+
 ## コマンド一覧
 
 共通の `--quiet` / `--verbose` はコマンドの前に指定し、同時には使えません。
@@ -188,6 +209,7 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 | 生成前の確認         | 上記に`--dry-run` を追加                                   | 通信・認証・書き込みなし               |
 | バージョン確認       | `tkn-genai-bridge --version`                                      | インストール済みの版を表示             |
 
+dry-run専用の `--estimate-output-tokens` は0以上の整数です。
 設定確認と生成には `--profile`、`--model`、`--reasoning-effort`、`--timeout-seconds`、`--no-project-config` も使えます。
 引数エラーは終了コード `2`、生成失敗は非 `0`、正常終了は `0` です。
 
@@ -258,6 +280,7 @@ uv build
 
 - [設定仕様と接続プロファイル例](docs/reference/configuration.md)
 - [Python API・失敗時の扱い](docs/reference/api.md)
+- [token・コスト概算と単価設定](docs/reference/costs.md)
 - [プロバイダーごとの接続仕様と公式資料](docs/reference/providers.md)
 - [既存CLIからの移行手順](docs/guides/migration.md)
 - [変更履歴](CHANGELOG.md)

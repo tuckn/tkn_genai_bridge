@@ -163,6 +163,7 @@ def _codex_metadata(stdout: str) -> tuple[str | None, Usage]:
         output_tokens=number(counts.get("output_tokens")),
         cached_input_tokens=number(counts.get("cached_input_tokens")),
         reasoning_tokens=number(counts.get("reasoning_output_tokens")),
+        cache_write_tokens=number(counts.get("cache_write_tokens")),
     )
 
 
@@ -180,6 +181,8 @@ def _claude_metadata(envelope: dict[str, Any]) -> ResponseMetadata:
             input_tokens=number(counts.get("input_tokens")),
             output_tokens=number(counts.get("output_tokens")),
             cached_input_tokens=number(counts.get("cache_read_input_tokens")),
+            cache_write_tokens=number(counts.get("cache_creation_input_tokens")),
+            input_tokens_scope="uncached",
         ),
     )
 

@@ -33,7 +33,7 @@ def test_five_layers_and_provenance(tmp_path):
     assert resolved.profile().model == "options"
     assert [s.name for s in resolved.sources] == ["built-in", "user", "project", "explicit", "options"]
     assert resolved.sources[1].schema_version == "1.0.9"
-    assert resolved.config.schema_version == "1.0.0"
+    assert resolved.config.schema_version == "1.1.0"
     assert resolved.field_sources["profiles.codex-default.model"] == "options"
     assert before == {p: p.read_bytes() for p in before}
 
@@ -45,7 +45,7 @@ def test_library_does_not_read_application_config(tmp_path):
         load_config(include_project=True)
 
 
-@pytest.mark.parametrize("version", [None, 1, "1", "01.0.0", "1.0.0-beta", "0.9.0", "1.1.0", "2.0.0"])
+@pytest.mark.parametrize("version", [None, 1, "1", "01.0.0", "1.0.0-beta", "0.9.0", "1.2.0", "2.0.0"])
 def test_rejects_missing_invalid_and_unsupported_schema(tmp_path, version):
     path = write(tmp_path / "config.yaml", json.dumps({"schema_version": version}))
     with pytest.raises(ConfigError):
@@ -118,7 +118,7 @@ def test_init_dry_run_idempotency_and_protection(tmp_path):
     assert initialize_config(path, dry_run=True)["status"] == "would_create"
     assert not path.parent.exists()
     assert initialize_config(path)["status"] == "created"
-    assert path.read_text(encoding="utf-8").splitlines()[0] == 'schema_version: "1.0.0"'
+    assert path.read_text(encoding="utf-8").splitlines()[0] == 'schema_version: "1.1.0"'
     assert initialize_config(path)["status"] == "unchanged"
     assert list(path.parent.iterdir()) == [path]
     path.write_text(config_template() + "# user edit\n", encoding="utf-8")

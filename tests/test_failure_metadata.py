@@ -166,7 +166,9 @@ def test_malformed_envelope_cannot_supply_metadata(request_object):
             request_object
         )
     assert exc.value.record.response_model is None
-    assert all(value is None for value in exc.value.record.usage.model_dump().values())
+    assert all(
+        value is None for value in exc.value.record.usage.model_dump(exclude={"input_tokens_scope"}).values()
+    )
 
 
 @pytest.mark.parametrize("provider", ["codex", "claude-code"])

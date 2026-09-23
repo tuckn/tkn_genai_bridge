@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Literal
 from urllib.parse import urlsplit
 
@@ -103,6 +104,30 @@ class AzureSettings(StrictModel):
         return value
 
 
+class TokenPricing(StrictModel):
+    """User-maintained reference rates, never a live quote or budget policy."""
+
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    pricing_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    input_per_million: float = Field(ge=0, allow_inf_nan=False)
+    output_per_million: float = Field(ge=0, allow_inf_nan=False)
+    cache_policy: Literal["no-cache", "observed"] = "no-cache"
+    cached_input_per_million: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    cache_write_per_million: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+    @field_validator("pricing_date")
+    @classmethod
+    def valid_date(cls, value: str) -> str:
+        date.fromisoformat(value)
+        return value
+
+    @model_validator(mode="after")
+    def require_cache_rate(self) -> TokenPricing:
+        if self.cache_policy == "observed" and self.cached_input_per_million is None:
+            raise ValueError("observed cache policy requires cached_input_per_million")
+        return self
+
+
 class Profile(StrictModel):
     _profile_name: str | None = PrivateAttr(default=None)
 
@@ -120,6 +145,14 @@ class Profile(StrictModel):
     cli: CliSettings | None = None
     ollama: OllamaSettings | None = None
     azure: AzureSettings | None = None
+    pricing: dict[str, TokenPricing] = Field(default_factory=dict)
+
+    @field_validator("pricing")
+    @classmethod
+    def pricing_names(cls, value: dict[str, TokenPricing]) -> dict[str, TokenPricing]:
+        if any(not name.strip() or "\x00" in name for name in value):
+            raise ValueError("pricing model names must not be blank")
+        return value
 
     @field_validator("model", "reasoning_effort")
     @classmethod
@@ -163,7 +196,7 @@ class Profile(StrictModel):
 
 
 class RuntimeConfig(StrictModel):
-    schema_version: str = "1.0.0"
+    schema_version: str = "1.1.0"
     default_profile: str = "codex-default"
     profiles: dict[str, Profile] = Field(default_factory=lambda: {"codex-default": Profile()})
 
@@ -183,10 +216,40 @@ class GenerationRequest(StrictModel):
 
 
 class Usage(StrictModel):
-    input_tokens: int | None = None
-    output_tokens: int | None = None
-    cached_input_tokens: int | None = None
-    reasoning_tokens: int | None = None
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    cached_input_tokens: int | None = Field(default=None, ge=0)
+    reasoning_tokens: int | None = Field(default=None, ge=0)
+    cache_write_tokens: int | None = Field(default=None, ge=0)
+    # Keep provider-reported counts intact. Claude reports uncached input separately.
+    input_tokens_scope: Literal["total", "uncached"] = "total"
+
+
+class TokenEstimate(StrictModel):
+    input_tokens: int = Field(ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    method: Literal["utf8-bytes-plus-margin-v1"] = "utf8-bytes-plus-margin-v1"
+    margin_tokens: int = 512
+    output_tokens_source: Literal["profile_limit", "caller", "unknown"] = "unknown"
+
+
+CostBasis = Literal["planned", "reported", "scenario"]
+CostUnavailableReason = Literal[
+    "pricing_not_configured", "usage_missing", "cache_usage_missing", "inconsistent_usage", "non_finite_cost"
+]
+
+
+class CostEstimate(StrictModel):
+    """Reference amount with enough evidence to reprice without another AI call."""
+
+    status: Literal["estimated", "unavailable"]
+    amount: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+    currency: str | None = None
+    basis: CostBasis = "scenario"
+    unavailable_reason: CostUnavailableReason | None = None
+    usage: Usage
+    pricing: TokenPricing | None = None
+    pricing_model: str | None = None
 
 
 class ResponseMetadata(StrictModel):
@@ -197,6 +260,7 @@ class ResponseMetadata(StrictModel):
 
 
 class GenerationRecord(ResponseMetadata):
+    cost_estimate: CostEstimate | None = None
     provider: Provider
     requested_model: str | None
     bridge_version: str | None = None
@@ -216,6 +280,8 @@ class GenerationResult(StrictModel):
 
 
 class GenerationPlan(StrictModel):
+    token_estimate: TokenEstimate | None = None
+    cost_estimate: CostEstimate | None = None
     bridge_version: str | None = None
     profile_name: str | None = None
     generation_settings_sha256: str | None = None

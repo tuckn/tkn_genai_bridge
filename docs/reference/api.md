@@ -7,7 +7,10 @@
 
 | 操作 | 動作 |
 | --- | --- |
-| `runtime.plan(request)` | プロンプトとスキーマを検証し、ハッシュと予定を返す |
+| `runtime.plan(request)` | 入力を検証し、ハッシュ・token概算・参考額を返す |
+| `runtime.plan(request, output_tokens=1000)` | 出力tokenの仮定値を指定。生成条件・上限の設定は変更しない |
+| `estimate_tokens(request, profile, output_tokens=1000)` | 入力済みリクエストの粗いtoken概算。完全な入力検証には `plan()` を使用 |
+| `estimate_cost(usage, pricing)` | token数と参考単価から再計算。生成を呼び出さない |
 | `runtime.plan(request, check_executable=True)` | CLIの実行ファイル確認も追加。プロセスは起動しない |
 | `runtime.generate(request)` | 生成を1回要求し、出力を検証して返す |
 | `runtime.close()` | Runtimeが所有する認証オブジェクトを解放。同じRuntimeを再利用しない |
@@ -53,7 +56,8 @@ Markdown の囲み、説明文、重複キー、NaN、Infinity はエラーで�
 | `provider` | 接続先の識別子 |
 | `requested_model` | 設定したモデル名。Azureではデプロイ名 |
 | `response_model` | 応答に含まれるモデル名。未取得は `null` |
-| `usage` | 入力・出力・キャッシュ入力・推論トークン数 |
+| `usage` | 入力・出力・キャッシュ入力・キャッシュ書込・推論token数と入力の集計範囲 |
+| `cost_estimate` | 参考額・通貨・基準日付き単価・計算に使ったusage。旧記録の未記載は `null` |
 | `started_at` | UTCオフセット付きの開始時刻 |
 | `duration_seconds` | この呼び出しの実測経過秒数 |
 | `status` | `succeeded` または `failed` |
@@ -74,6 +78,7 @@ Markdown の囲み、説明文、重複キー、NaN、Infinity はエラーで�
 `local_only`、`schema_name` と、該当するCLI実行ファイル指定／Ollama設定／Azure endpointを含めます。
 キー順に依存せず、省略したCLI・Ollama設定は既定値へ展開してハッシュ化します。
 プロファイル名、認証方式、環境変数名・値、テナント、トークンスコープ、認証コールバックは含めません。
+参考単価も生成条件のハッシュには含めません。単価更新だけで再生成する必要はなく、計算時の単価は概算結果に保存します。
 プロンプトとスキーマ本文は既存の2つのハッシュで識別します。
 実行ファイルやendpointの生の値は記録に追加しません。
 
@@ -87,8 +92,15 @@ JSON解析・スキーマ不一致・途中終了・拒否・本文欠落など�
 CodexとClaude Codeでは、非ゼロ終了時も標準出力から読み取れる情報を保持します。
 応答全体が不正なJSONの場合や、応答を取得できなかった通信失敗では情報を推測しません。
 LiteLLMが補完するモデル名・推定トークン数は使用せず、接続先の元の応答にある情報だけを記録します。
-プロバイダーによってトークンの集計範囲が異なるため、単純に合算して料金とみなさないでください。
-料金計算、処理全体の上限、複数プロセス間の予算管理は利用側の担当です。
+`Usage.input_tokens_scope` は通常 `total`（キャッシュ分を含む）で、Claude Codeは `uncached` です。
+Claudeの入力値を改変せず、コスト計算時にキャッシュ読込・書込を足して全入力を扱います。
+必要なキャッシュ数が取得できなければ金額も不明です。推論tokenは出力に含まれるため再加算しません。
+失敗時の記録にも取得済みusageから参考額を計算します。通信断などの未取得分を事前概算で埋めません。
+
+参考額の計算はBridge、処理全体の上限・実行可否・複数プロセス間の予算管理は利用側の担当です。
+詳しい単価・欠測・キャッシュの契約は [コスト概算](costs.md) にあります。
+0.4以前のClaude記録を再計算するときは、`input_tokens_scope="uncached"` を指定し、
+元の記録から必要なキャッシュ数を補ってください。不明な数値を0として補完しないでください。
 
 `Runtime(profile, observer=callback)` で完了記録を受け取れます。
 入力検証に失敗した場合は生成前なので通知しません。

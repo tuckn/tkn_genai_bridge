@@ -15,9 +15,9 @@ import yaml
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from .errors import ConfigError
-from .models import Profile, RuntimeConfig
+from .models import Profile, RuntimeConfig, TokenPricing
 
-SCHEMA_VERSION = "1.0.0"
+SCHEMA_VERSION = "1.1.0"
 
 
 def config_template() -> str:
@@ -49,9 +49,9 @@ def _version(value: Any) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", value):
         raise ConfigError('schema_version must be a quoted "MAJOR.MINOR.PATCH" string', code="invalid_config")
     major, minor, _patch = map(int, value.split("."))
-    if major != 1 or minor > 0:
+    if major != 1 or minor > 1:
         raise ConfigError(
-            "supported config schema: 1.0.x; migrate explicitly or update the package",
+            "supported config schema: 1.0.x and 1.1.x; migrate explicitly or update the package",
             code="unsupported_schema",
         )
     return value
@@ -73,6 +73,23 @@ def _fragment(value: dict[str, Any], model: type[BaseModel]) -> None:
                     raise ConfigError("each profile must be a mapping", code="invalid_config")
                 _fragment(profile, Profile)
             continue
+        if model is Profile and key == "pricing":
+            if not isinstance(item, dict) or any(
+                not isinstance(k, str) or not k.strip() or "\x00" in k for k in item
+            ):
+                raise ConfigError("pricing must map model names to rates", code="invalid_config")
+            for price in item.values():
+                if not isinstance(price, dict):
+                    raise ConfigError("each price must be a mapping", code="invalid_config")
+                _fragment(price, TokenPricing)
+            continue
+        if model is TokenPricing and key == "pricing_date":
+            try:
+                if not isinstance(item, str):
+                    raise ValueError
+                TokenPricing.valid_date(item)
+            except ValueError:
+                raise ConfigError("invalid pricing_date", code="invalid_config") from None
         field = model.model_fields[key]
         annotation = field.rebuild_annotation()
         nested = next(

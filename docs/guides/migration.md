@@ -16,7 +16,8 @@ API接続にはLiteLLM SDKを使います。
 | 接続先・モデル・認証の設定 | 共通の接続プロファイル |
 | プロンプト、出力スキーマ、生成プロファイル | 利用側に保持 |
 | event IDの短縮・復元、許可IDの列挙、出典検証 | 利用側に保持 |
-| 入力トークン推定、料金表、処理全体の予算、分割・統合・修復 | 利用側に保持 |
+| 入力token概算、参考単価、金額計算 | `Runtime.plan()` / `estimate_cost()` / 共有プロファイルの `pricing` |
+| 許容額・回数・tokenの上限、分割・統合・修復 | 利用側に保持 |
 | usage記録の既存形式、manifest、状態、Markdown保存 | 利用側で `GenerationRecord` を変換 |
 
 既存の `api_inference.py` をそのまま移す必要はありません。
@@ -72,3 +73,30 @@ with Runtime(profile) as runtime:
 - 再生成判定には `bridge_version`、`generation_settings_sha256`、`prompt_sha256`、`schema_sha256` を利用できます。保存・再利用の可否と独自backendの追加条件は利用側で判断します。
 - `load_profile()` は選択名を保持します。直接作った `Profile` に名前を付ける場合は `Runtime(profile, profile_name="app-profile")` を指定します。
 - 自動再試行・プロバイダー切り替えはありません。利用側の再試行は回数、失敗条件、課金の可能性を明示して維持します。
+
+## CLI側のコスト計算を移す
+
+Bridge 0.5.0以降では、次の対応で既存の単価を共有プロファイルへ移せます。
+このライブラリの更新だけでは利用側コード・利用側configは変更されません。
+
+| 既存CLIの設定 | Bridgeの `profiles.<profile>.pricing.<deployment>` |
+| --- | --- |
+| `input_jpy_per_million` | `input_per_million` |
+| `output_jpy_per_million` | `output_per_million` |
+| `pricing_date` | 同名。引用符付きの有効な `YYYY-MM-DD` |
+| JPYであること | `currency: JPY` を明示 |
+| キャッシュ差額を考慮しない計算 | `cache_policy: no-cache` |
+
+既存の `limits.max_cost_jpy`、`max_calls`、`input_tokens`、`output_tokens`、`context_tokens` は利用側に残します。
+Bridgeへ渡す実行プロファイルの `max_output_tokens` には利用側の出力上限を反映してください。
+価格のキーと要求デプロイ名を揃えます。違うデプロイの価格を暗黙に流用しません。
+
+呼び出す前に `plan = runtime.plan(request)` からtoken概算・参考額・通貨を取得し、
+CLI側の上限・既使用量・予約量・算出不能時の方針を確認します。
+独自tokenizerを使い続ける場合は、そのtoken概算を `Usage` に入れて `estimate_cost()` で料金だけ計算できます。
+Bridgeの既定token概算はUTF-8バイト数ベースのため、既存CLIでローカルのtokenizerが使えた場合とは値が異なります。
+分割・修復・再試行の予約と、失敗・通信断時の予算を戻すかどうかはCLIの責務です。
+
+生成後の `record.cost_estimate` と `record.usage` は既存の記録形式へ変換できます。
+参考単価のsnapshotも保存すると、単価改定の前後を再現できます。
+単価や許容額だけの変更を、コンテンツの再生成条件に混ぜないよう注意してください。

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from types import TracebackType
 
 from ._version import __version__
+from .costs import estimate_tokens, profile_cost
 from .errors import GenAIError, ProviderError
 from .models import GenerationPlan, GenerationRecord, GenerationRequest, GenerationResult, Profile, Usage
 from .provenance import generation_settings_hash
@@ -60,13 +61,41 @@ class Runtime:
     ) -> None:
         self.close()
 
-    def plan(self, request: GenerationRequest, *, check_executable: bool = False) -> GenerationPlan:
+    def plan(
+        self, request: GenerationRequest, *, check_executable: bool = False, output_tokens: int | None = None
+    ) -> GenerationPlan:
         self._ensure_open()
         prepare_validator(request)
         if check_executable and self.profile.provider in {"codex", "claude-code", "github-copilot"}:
             resolve_executable(self.profile)
         prompt_hash, schema_hash = fingerprints(request)
+        tokens = estimate_tokens(request, self.profile, output_tokens=output_tokens)
+        # Planning assumes no cache reuse. When observed write pricing is higher,
+        # reserve that input rate for the entire visible prompt.
+        price = self.profile.pricing.get(self.profile.model or "")
+        writes = (
+            tokens.input_tokens
+            if (
+                price is not None
+                and price.cache_policy == "observed"
+                and price.cache_write_per_million is not None
+                and price.cache_write_per_million > price.input_per_million
+            )
+            else 0
+        )
+        cost = profile_cost(
+            self.profile,
+            Usage(
+                input_tokens=tokens.input_tokens,
+                output_tokens=tokens.output_tokens,
+                cached_input_tokens=0,
+                cache_write_tokens=writes,
+            ),
+            basis="planned",
+        )
         return GenerationPlan(
+            token_estimate=tokens,
+            cost_estimate=cost,
             bridge_version=__version__,
             profile_name=self.profile_name,
             generation_settings_sha256=generation_settings_hash(self.profile, request),
@@ -107,7 +136,14 @@ class Runtime:
                 "provider local I/O failed; check temporary directory permissions", code="local_io"
             )
         metadata = response if response is not None else error.metadata if error else None
+        usage = metadata.usage if metadata else Usage()
         record = GenerationRecord(
+            cost_estimate=profile_cost(
+                self.profile,
+                usage,
+                basis="reported",
+                response_model=metadata.response_model if metadata else None,
+            ),
             bridge_version=__version__,
             profile_name=self.profile_name,
             generation_settings_sha256=settings_hash,
@@ -120,7 +156,7 @@ class Runtime:
             error_code=error.code if error else None,
             prompt_sha256=prompt_hash,
             schema_sha256=schema_hash,
-            usage=metadata.usage if metadata else Usage(),
+            usage=usage,
         )
         if self.observer:
             try:

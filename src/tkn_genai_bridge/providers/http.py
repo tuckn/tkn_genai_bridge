@@ -127,6 +127,9 @@ def provider_response(payload: dict[str, Any], *, local: bool) -> ProviderRespon
             if isinstance(prompt_details, dict)
             else None,
             reasoning_tokens=number(details.get("reasoning_tokens")) if isinstance(details, dict) else None,
+            cache_write_tokens=number(prompt_details.get("cache_write_tokens"))
+            if isinstance(prompt_details, dict)
+            else None,
         )
     metadata = ResponseMetadata(response_model=model_name(payload.get("model")), usage=usage)
     with preserve_metadata(metadata):

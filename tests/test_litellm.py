@@ -63,7 +63,10 @@ def test_real_sdk_called_and_missing_server_metadata_stays_unknown(local, reques
     assert calls[0]["num_retries"] == calls[0]["max_retries"] == 0
     assert calls[0]["caching"] is False and calls[0]["drop_params"] is False
     assert result.record.response_model is None
-    assert all(value is None for value in result.record.usage.model_dump().values())
+    assert result.record.usage.input_tokens_scope == "total"
+    assert all(
+        value is None for value in result.record.usage.model_dump(exclude={"input_tokens_scope"}).values()
+    )
 
 
 @pytest.mark.parametrize("local", [True, False])

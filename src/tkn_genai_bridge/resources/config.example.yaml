@@ -1,4 +1,4 @@
-schema_version: "1.0.0"
+schema_version: "1.1.0"
 default_profile: codex-default
 profiles:
   codex-default:
@@ -21,6 +21,14 @@ profiles:
 #    provider: azure-openai
 #    model: your-deployment-name
 #    max_output_tokens: 4096
+#    # 任意の参考単価。下記は架空値であり、現在の価格ではありません。
+#    pricing:
+#      your-deployment-name:
+#        currency: JPY
+#        pricing_date: "2026-01-01"
+#        input_per_million: 30.0
+#        output_per_million: 180.0
+#        cache_policy: no-cache
 #    azure:
 #      endpoint: https://your-resource.openai.azure.com/openai/v1
 #      auth: api_key
