@@ -2,10 +2,7 @@
 
 ## 0.3.0
 
-- プロジェクト名を Tuckn GenAI Bridge、配布パッケージ名を `tkn-genai-bridge`、Python import 名を `tkn_genai_bridge` に変更。
-- CLI コマンド名を `tkn-genai` から `tkn-genai-bridge` に変更。旧コマンド名・旧 import 名の互換エイリアスは提供しない。
-- README、移行ガイド、サンプル、テスト、パッケージリソース参照を新名称に統一。
-- `Runtime` クラスの呼び出し方、共有設定の場所と形式、生成・dry-run の動作は維持。
+- README、組み込みガイド、サンプルの記載を整備。
 
 ## 0.2.0
 

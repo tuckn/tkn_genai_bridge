@@ -4,38 +4,8 @@
 共通パッケージを追加しただけでは、既存CLIの動作や設定は変わりません。
 利用側リポジトリの変更は別の移行作業として行ってください。
 
-v0.2.0からAPI接続にLiteLLM SDKを使いますが、利用側の呼び出し方と設定形式は同じです。
+API接続にはLiteLLM SDKを使います。
 利用側でLiteLLMを直接importしたり、Proxyを起動したりする必要はありません。
-v0.1.0から更新する場合も、共有設定の書き換えは不要です。
-
-## v0.3.0 の名称変更
-
-| 対象 | v0.2.x まで | v0.3.0 から |
-| --- | --- | --- |
-| 配布パッケージ名 | `tkn-genai-runtime` | `tkn-genai-bridge` |
-| Python import 名 | `tkn_genai_runtime` | `tkn_genai_bridge` |
-| CLI コマンド名 | `tkn-genai` | `tkn-genai-bridge` |
-
-旧コマンド名・旧 import 名の互換エイリアスは提供しません。
-スクリプトやタスクの呼び出しコマンドも `tkn-genai-bridge` に変更してください。
-`Runtime` クラス名とメソッド、共有設定 `~/.tkn/genai/config.yaml`、設定スキーマは変更しません。
-
-補助CLIは、名前変更後のリポジトリでインストールします。
-
-```powershell
-cd "C:\path\to\tkn_genai_bridge"
-uv tool install .
-tkn-genai-bridge --help
-```
-
-以前に `uv tool install` で旧パッケージを導入した場合は、新コマンドの起動確認後に旧パッケージを削除します。
-
-```powershell
-uv tool uninstall tkn-genai-runtime
-```
-
-Python API の利用側では依存名を `tkn-genai-bridge`、import を `tkn_genai_bridge` に変更し、
-Git 依存ならリポジトリURLも更新します。依存関係とロックファイルを更新した後、利用側CLIを再インストールしてください。
 
 ## 責務を対応させる
 
