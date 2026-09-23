@@ -45,7 +45,7 @@ def parser() -> argparse.ArgumentParser:
     config = commands.add_parser("config", help="共有設定の作成と確認")
     actions = config.add_subparsers(dest="action", required=True)
     init = actions.add_parser("init", help="設定を作成。同一内容は unchanged、編集済みは保護")
-    init.add_argument("--path", type=Path, help="作成先。既定: ~/.tkn/genai/config.yaml")
+    init.add_argument("--path", type=Path, help="作成先。既定: ~/.tkn/genai_bridge/config.yaml")
     init.add_argument("--dry-run", action="store_true", help="書き込み・認証・通信なしで作成予定を確認")
     show = actions.add_parser("show", help="解決済み設定と設定元を JSON で表示。通信・書き込みなし")
     _settings(show)

@@ -3,11 +3,23 @@
 Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
 プロンプトと JSON Schema を渡すと、検証済みの JSON オブジェクトと、モデル・利用量・実行時間の情報を返します。
 
-例えば「文章を要約し、summary に入れて返す」という要求を、接続プロファイルの変更で Codex、Claude Code、GitHub Copilot、Ollama、Azure OpenAI に切り替えられます。
-次は結果の説明例です。実際の生成文と利用量は接続先によって変わります。
+利用側の CLI は、プロンプトと期待する出力形式（JSON Schema）を用意し、接続プロファイルを指定して Bridge を呼び出します。
+接続プロファイルを変えることで、同じ呼び出し方で Codex、Claude Code、GitHub Copilot、Ollama、Azure OpenAI を利用できます。
+正常に生成・検証できた場合の流れは次のとおりです。
 
-```json
-{"summary": "火曜日に新機能を公開し、金曜日に利用者の意見を確認します。"}
+```mermaid
+sequenceDiagram
+    participant App as 利用側の Python CLI
+    participant Bridge as Tuckn GenAI Bridge
+    participant AI as 選択した生成AI接続先
+
+    App->>Bridge: プロンプト・JSON Schema を渡して生成を依頼
+    Bridge->>Bridge: 接続プロファイルに応じた呼び出し方法を選択
+    Bridge->>AI: 生成を要求
+    AI-->>Bridge: 生成結果・取得できたモデルや利用量の情報
+    Bridge->>Bridge: 結果を JSON Schema で検証し、実行情報をまとめる
+    Bridge-->>App: data（検証済み JSON）と record（実行情報）
+    App->>App: 結果の内容を確認し、用途に応じて整形・保存
 ```
 
 初めて使う場合は「セットアップ」から「Python CLI に組み込む」まで進めてください。
@@ -73,7 +85,7 @@ tkn-genai-bridge config init
 tkn-genai-bridge config show --no-project-config
 ```
 
-`config init` は `~/.tkn/genai/config.yaml` を作成し、絶対パスと作成結果を表示します。
+`config init` は `~/.tkn/genai_bridge/config.yaml` を作成し、絶対パスと作成結果を表示します。
 同じ内容なら `unchanged`、編集済みならエラーで停止して既存ファイルを保持します。
 作成したファイルを編集し、利用する接続プロファイルを追加してください。
 

@@ -25,7 +25,7 @@ def config_template() -> str:
 
 
 def user_config_path() -> Path:
-    return Path.home() / ".tkn" / "genai" / "config.yaml"
+    return Path.home() / ".tkn" / "genai_bridge" / "config.yaml"
 
 
 class _UniqueLoader(yaml.SafeLoader):

@@ -5,7 +5,7 @@
 補助CLIは次の順で読み、後の値を優先します。
 
 1. 組み込み既定値
-2. `~/.tkn/genai/config.yaml`
+2. `~/.tkn/genai_bridge/config.yaml`
 3. 実行時の `./.tkn/config.yaml`
 4. `--config` で明示したファイル
 5. `--profile`、`--model` などの個別オプション
