@@ -2,8 +2,8 @@ from contextlib import ExitStack
 
 import pytest
 
-from tkn_genai_runtime import AzureSettings, ProviderError
-from tkn_genai_runtime.providers.http import azure_headers
+from tkn_genai_bridge import AzureSettings, ProviderError
+from tkn_genai_bridge.providers.http import azure_headers
 
 
 @pytest.mark.parametrize("mode", ["default_credential", "interactive_browser"])

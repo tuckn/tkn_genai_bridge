@@ -3,8 +3,8 @@ import json
 import httpx
 import pytest
 
-from tkn_genai_runtime import AzureSettings, OllamaSettings, Profile, ProviderError, Runtime
-from tkn_genai_runtime.providers.litellm import LiteLLMBackend
+from tkn_genai_bridge import AzureSettings, OllamaSettings, Profile, ProviderError, Runtime
+from tkn_genai_bridge.providers.litellm import LiteLLMBackend
 
 
 def azure(**kwargs):
@@ -171,7 +171,7 @@ def test_local_only_fails_closed(request_object, info):
 
 
 def test_ollama_does_not_use_environment_proxy(request_object, monkeypatch):
-    from tkn_genai_runtime.providers import litellm as http
+    from tkn_genai_bridge.providers import litellm as http
 
     original = httpx.Client
     flags = []

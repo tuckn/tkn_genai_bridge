@@ -1,4 +1,4 @@
-# Tuckn GenAI Runtime — Python CLI 共通の生成AI呼び出し
+# Tuckn GenAI Bridge — Python CLI 共通の生成AI呼び出し
 
 Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
 プロンプトと JSON Schema を渡すと、検証済みの JSON オブジェクトと、モデル・利用量・実行時間の情報を返します。
@@ -15,7 +15,7 @@ Python で作成した複数の CLI から、同じ API と接続設定で生成
 
 ## 担当する範囲
 
-| Tuckn GenAI Runtimeの担当範囲                        | 本パッケージを利用する側の担当範囲                          |
+| Tuckn GenAI Bridgeの担当範囲                        | 本パッケージを利用する側の担当範囲                          |
 | ---------------------------------------------------- | ----------------------------------------------------------- |
 | 接続先の選択、共通設定、認証方法、通信・外部プロセス | 入力ファイルの選択、分割・統合、用途に合ったプロンプト      |
 | タイムアウト、例外、JSON Schema 検証、実行情報       | 出典との照合、Markdown への整形、保存・再開、処理全体の予算 |
@@ -25,7 +25,7 @@ Python で作成した複数の CLI から、同じ API と接続設定で生成
 
 ```mermaid
 flowchart LR
-    A["Python CLI"] --> B["本Runtime"]
+    A["Python CLI"] --> B["本Bridge"]
     C["共有接続プロファイル"] --> B
     B --> D["CLI: Codex / Claude Code / Copilot"]
     B --> E["LiteLLM Python SDK"]
@@ -50,13 +50,13 @@ Python 3.11 以上と [uv](https://docs.astral.sh/uv/) が必要です。
 
 ### 補助CLIをインストールする
 
-設定管理や単独実行に使う `tkn-genai` をインストールします。
+設定管理や単独実行に使う `tkn-genai-bridge` をインストールします。
 例のパスを、このリポジトリを置いたフォルダに置き換えてください。
 
 ```powershell
-cd "C:\path\to\tkn_genai_runtime"
+cd "C:\path\to\tkn_genai_bridge"
 uv tool install .
-tkn-genai --help
+tkn-genai-bridge --help
 ```
 
 Azure OpenAI の API キー認証と Microsoft Entra ID 認証（ブラウザー認証を含む）に必要なライブラリも、このインストールに含まれます。
@@ -68,9 +68,9 @@ Azure OpenAI の API キー認証と Microsoft Entra ID 認証（ブラウザー
 ### 設定を行う
 
 ```powershell
-tkn-genai config init --dry-run
-tkn-genai config init
-tkn-genai config show --no-project-config
+tkn-genai-bridge config init --dry-run
+tkn-genai-bridge config init
+tkn-genai-bridge config show --no-project-config
 ```
 
 `config init` は `~/.tkn/genai/config.yaml` を作成し、絶対パスと作成結果を表示します。
@@ -87,7 +87,7 @@ Codex CLI のログイン済み認証を使い、モデルは CLI の既定値�
 リポジトリ直下の匿名サンプルで、設定・入力・実行ファイルを確認します。
 
 ```powershell
-tkn-genai generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
+tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
 ```
 
 dry-run は通信、認証、生成AIの呼び出し、ファイル作成を行いません。
@@ -99,7 +99,7 @@ dry-run は通信、認証、生成AIの呼び出し、ファイル作成を行�
 `--dry-run` を外して実行します。
 
 ```powershell
-tkn-genai generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json
+tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json
 ```
 
 標準出力の JSON の `data` に検証済みの結果、`record` に実行情報が入ります。
@@ -119,8 +119,8 @@ tkn-genai generate --no-project-config --profile codex-default --prompt-file exa
 
 ```powershell
 cd "C:\path\to\your_cli"
-uv add "C:\path\to\tkn_genai_runtime"
-uv run python -c "import tkn_genai_runtime; print(tkn_genai_runtime.__version__)"
+uv add "C:\path\to\tkn_genai_bridge"
+uv run python -c "import tkn_genai_bridge; print(tkn_genai_bridge.__version__)"
 ```
 
 これは通常のインストールです。
@@ -132,7 +132,7 @@ uv run python -c "import tkn_genai_runtime; print(tkn_genai_runtime.__version__)
 ### 最小の呼び出しコード
 
 ```python
-from tkn_genai_runtime import GenerationRequest, Runtime, load_profile
+from tkn_genai_bridge import GenerationRequest, Runtime, load_profile
 
 runtime = Runtime(load_profile("codex-default"))
 request = GenerationRequest(
@@ -165,11 +165,11 @@ print(result.record.model_dump())
 
 | 目的                 | コマンド                                                     | 結果・副作用                           |
 | -------------------- | ------------------------------------------------------------ | -------------------------------------- |
-| 設定の作成           | `tkn-genai config init [--path PATH] [--dry-run]`          | 通常は設定ファイルを新規作成           |
-| 設定元と最終値の確認 | `tkn-genai config show [--config PATH] [--profile NAME]`   | 読み取りのみ。認証情報の値は解決しない |
-| 生成                 | `tkn-genai generate --prompt-file PATH --schema-file PATH` | 接続先へ送信し、JSON を表示            |
+| 設定の作成           | `tkn-genai-bridge config init [--path PATH] [--dry-run]`          | 通常は設定ファイルを新規作成           |
+| 設定元と最終値の確認 | `tkn-genai-bridge config show [--config PATH] [--profile NAME]`   | 読み取りのみ。認証情報の値は解決しない |
+| 生成                 | `tkn-genai-bridge generate --prompt-file PATH --schema-file PATH` | 接続先へ送信し、JSON を表示            |
 | 生成前の確認         | 上記に`--dry-run` を追加                                   | 通信・認証・書き込みなし               |
-| バージョン確認       | `tkn-genai --version`                                      | インストール済みの版を表示             |
+| バージョン確認       | `tkn-genai-bridge --version`                                      | インストール済みの版を表示             |
 
 設定確認と生成には `--profile`、`--model`、`--reasoning-effort`、`--timeout-seconds`、`--no-project-config` も使えます。
 引数エラーは終了コード `2`、生成失敗は非 `0`、正常終了は `0` です。
@@ -215,18 +215,21 @@ SDK の価格表・トークナイザーは同梱データを使い、SDKログ�
 補助CLIを更新する場合は、更新済みリポジトリで再インストールします。
 
 ```powershell
-cd "C:\path\to\tkn_genai_runtime"
+cd "C:\path\to\tkn_genai_bridge"
 uv tool install . --reinstall
-tkn-genai --version
+tkn-genai-bridge --version
 ```
 
 各アプリケーションは別々の環境に依存パッケージを持つため、共通パッケージを編集しただけでは更新されません。
 利用側で依存バージョンを更新してロックファイルを確認し、利用側CLIも再インストールしてください。
 
+v0.3.0 で配布パッケージ名・Python import 名・CLI コマンド名を変更しました。
+旧版からの切り替えは [移行ガイド](docs/guides/migration.md#v030-の名称変更) を参照してください。
+
 開発環境の作成と確認は次の手順です。
 
 ```powershell
-cd "C:\path\to\tkn_genai_runtime"
+cd "C:\path\to\tkn_genai_bridge"
 uv sync --locked
 uv run pytest
 uv run ruff check .
@@ -234,7 +237,7 @@ uv run mypy src
 uv build
 ```
 
-ソースは `src/tkn_genai_runtime/`、テストは `tests/`、配布する設定と指示文は `src/tkn_genai_runtime/resources/` にあります。
+ソースは `src/tkn_genai_bridge/`、テストは `tests/`、配布する設定と指示文は `src/tkn_genai_bridge/resources/` にあります。
 テストはフレームワークが管理する一時領域を使い、実際の共有設定を変更しません。
 
 ## 関連資料

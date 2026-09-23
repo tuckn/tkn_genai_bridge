@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tkn_genai_runtime import CliSettings, Profile, ProviderError, Runtime
-from tkn_genai_runtime.providers import cli
+from tkn_genai_bridge import CliSettings, Profile, ProviderError, Runtime
+from tkn_genai_bridge.providers import cli
 
 
 @pytest.mark.parametrize("provider", ["codex", "claude-code", "github-copilot"])

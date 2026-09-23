@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from tkn_genai_runtime import GenerationRequest, Runtime, load_profile
+from tkn_genai_bridge import GenerationRequest, Runtime, load_profile
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--profile", default="codex-default")

@@ -21,7 +21,7 @@ SCHEMA_VERSION = "1.0.0"
 
 
 def config_template() -> str:
-    return files("tkn_genai_runtime.resources").joinpath("config.example.yaml").read_text(encoding="utf-8")
+    return files("tkn_genai_bridge.resources").joinpath("config.example.yaml").read_text(encoding="utf-8")
 
 
 def user_config_path() -> Path:

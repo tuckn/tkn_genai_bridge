@@ -51,7 +51,7 @@ class ColorFormatter(logging.Formatter):
 
 
 def configure_logging(*, quiet: bool = False, verbose: bool = False) -> logging.Logger:
-    logger = logging.getLogger("tkn_genai_runtime")
+    logger = logging.getLogger("tkn_genai_bridge")
     logger.handlers.clear()
     logger.propagate = False
     logger.setLevel(logging.ERROR if quiet else logging.DEBUG if verbose else logging.INFO)

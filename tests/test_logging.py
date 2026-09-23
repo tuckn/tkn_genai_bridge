@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from tkn_genai_runtime.logging_utils import SUCCESS, ColorFormatter, configure_logging, supports_color
+from tkn_genai_bridge.logging_utils import SUCCESS, ColorFormatter, configure_logging, supports_color
 
 
 def test_level_and_color_contract():
@@ -45,7 +45,7 @@ def test_color_fallbacks(monkeypatch):
         def isatty(self):
             return True
 
-    from tkn_genai_runtime import logging_utils
+    from tkn_genai_bridge import logging_utils
 
     monkeypatch.setenv("NO_COLOR", "")
     assert not supports_color(Tty())

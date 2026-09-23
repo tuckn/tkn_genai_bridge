@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from tkn_genai_runtime import (
+from tkn_genai_bridge import (
     GenerationRequest,
     OutputValidationError,
     Profile,
@@ -11,8 +11,8 @@ from tkn_genai_runtime import (
     Runtime,
     Usage,
 )
-from tkn_genai_runtime.providers.base import ProviderResponse
-from tkn_genai_runtime.validation import parse_object
+from tkn_genai_bridge.providers.base import ProviderResponse
+from tkn_genai_bridge.validation import parse_object
 
 
 class StubBackend:

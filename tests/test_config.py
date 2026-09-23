@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from tkn_genai_runtime import ConfigError, load_config, load_profile
-from tkn_genai_runtime.config import config_template, initialize_config
-from tkn_genai_runtime.models import Profile
+from tkn_genai_bridge import ConfigError, load_config, load_profile
+from tkn_genai_bridge.config import config_template, initialize_config
+from tkn_genai_bridge.models import Profile
 
 
 def write(path, body):
@@ -135,7 +135,7 @@ def test_init_atomic_publish_failure_cleans_pending_file(tmp_path, monkeypatch):
     def fail(*args):
         raise OSError("failure")
 
-    monkeypatch.setattr("tkn_genai_runtime.config.os.link", fail)
+    monkeypatch.setattr("tkn_genai_bridge.config.os.link", fail)
     with pytest.raises(ConfigError):
         initialize_config(path)
     assert not path.exists()

@@ -34,7 +34,9 @@ def _settings(parser: argparse.ArgumentParser) -> None:
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(prog="tkn-genai", description="Python CLI 共通の生成AI接続と設定管理")
+    root = argparse.ArgumentParser(
+        prog="tkn-genai-bridge", description="Python CLI 共通の生成AI接続と設定管理"
+    )
     root.add_argument("--version", action="version", version=__version__)
     logging = root.add_mutually_exclusive_group()
     logging.add_argument("-q", "--quiet", action="store_true", help="エラーだけを stderr に表示")

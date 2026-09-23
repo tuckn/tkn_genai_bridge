@@ -57,7 +57,7 @@ def resolve_executable(profile: Profile) -> str:
 
 def schema_prompt(request: GenerationRequest) -> str:
     instruction = (
-        files("tkn_genai_runtime.resources").joinpath("json_instruction.txt").read_text(encoding="utf-8")
+        files("tkn_genai_bridge.resources").joinpath("json_instruction.txt").read_text(encoding="utf-8")
     )
     return (
         request.prompt.rstrip()
@@ -158,7 +158,7 @@ def _codex_metadata(stdout: str) -> tuple[str | None, Usage]:
 class CliBackend:
     def generate(self, profile: Profile, request: GenerationRequest) -> ProviderResponse:
         executable = resolve_executable(profile)
-        with tempfile.TemporaryDirectory(prefix="tkn-genai-") as folder:
+        with tempfile.TemporaryDirectory(prefix="tkn-genai-bridge-") as folder:
             cwd = Path(folder)
             command = [executable]
             prompt = request.prompt

@@ -7,8 +7,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from tkn_genai_runtime.cli import main
-from tkn_genai_runtime.config import config_template
+from tkn_genai_bridge.cli import main
+from tkn_genai_bridge.config import config_template
 
 
 def test_config_commands_are_json_and_read_only(tmp_path, capsys):
@@ -38,7 +38,7 @@ def test_dry_run_does_not_call_api_or_create_files(tmp_path, capsys, monkeypatch
     prompt, schema = tmp_path / "prompt.txt", tmp_path / "schema.json"
     prompt.write_text("private-prompt", encoding="utf-8")
     schema.write_text('{"type":"object"}', encoding="utf-8")
-    from tkn_genai_runtime.providers.litellm import LiteLLMBackend
+    from tkn_genai_bridge.providers.litellm import LiteLLMBackend
 
     monkeypatch.setattr(LiteLLMBackend, "generate", lambda *args: pytest.fail("must not generate"))
     before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
@@ -156,7 +156,7 @@ def test_real_entrypoint_with_loopback_fixture(tmp_path):
             [
                 sys.executable,
                 "-m",
-                "tkn_genai_runtime",
+                "tkn_genai_bridge",
                 "generate",
                 "--config",
                 str(config),

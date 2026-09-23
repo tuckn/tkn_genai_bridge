@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from tkn_genai_runtime import GenerationRequest
+from tkn_genai_bridge import GenerationRequest
 
 
 @pytest.fixture(autouse=True)

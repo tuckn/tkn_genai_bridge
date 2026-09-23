@@ -9,7 +9,7 @@ import textwrap
 import httpx
 import pytest
 
-from tkn_genai_runtime import (
+from tkn_genai_bridge import (
     AzureSettings,
     OllamaSettings,
     OutputValidationError,
@@ -17,7 +17,7 @@ from tkn_genai_runtime import (
     ProviderError,
     Runtime,
 )
-from tkn_genai_runtime.providers.litellm import LiteLLMBackend, load_sdk
+from tkn_genai_bridge.providers.litellm import LiteLLMBackend, load_sdk
 
 
 def reply(local, content='{"summary":"ok"}', **updates):
@@ -161,8 +161,8 @@ def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
         socket.socketpair = pair
         socket.socket.connect = lambda *a, **kw: guarded_connect(original_connect, *a, **kw)
         socket.socket.connect_ex = lambda *a, **kw: guarded_connect(original_connect_ex, *a, **kw)
-        from tkn_genai_runtime import GenerationRequest, Runtime, Profile
-        from tkn_genai_runtime.providers.litellm import LiteLLMBackend
+        from tkn_genai_bridge import GenerationRequest, Runtime, Profile
+        from tkn_genai_bridge.providers.litellm import LiteLLMBackend
         import httpx
         calls = []
         def handle(request):

@@ -43,7 +43,7 @@ def azure_headers(
         from azure.identity import DefaultAzureCredential, InteractiveBrowserCredential
     except ImportError:
         raise ProviderError(
-            "Azure authentication dependency is missing; reinstall tkn-genai-runtime",
+            "Azure authentication dependency is missing; reinstall tkn-genai-bridge",
             code="missing_dependency",
         ) from None
     try:
