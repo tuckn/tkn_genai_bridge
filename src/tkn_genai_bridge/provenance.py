@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 
-from .models import GenerationRequest, OllamaSettings, Profile
+from .models import CLI_EXECUTABLES, GenerationRequest, OllamaSettings, Profile
 
 
 def generation_settings_hash(profile: Profile, request: GenerationRequest) -> str:
@@ -27,9 +27,10 @@ def generation_settings_hash(profile: Profile, request: GenerationRequest) -> st
     elif profile.provider == "ollama":
         settings["ollama"] = (profile.ollama or OllamaSettings()).model_dump()
     else:
-        defaults = {"codex": "codex", "claude-code": "claude", "github-copilot": "copilot"}
         settings["executable"] = (
-            profile.cli.executable if profile.cli and profile.cli.executable else defaults[profile.provider]
+            profile.cli.executable
+            if profile.cli and profile.cli.executable
+            else CLI_EXECUTABLES[profile.provider]
         )
     canonical = json.dumps(
         settings, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False

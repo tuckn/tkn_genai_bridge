@@ -8,6 +8,9 @@
 ## LiteLLM Python SDK
 
 Ollama・Azure OpenAIは本パッケージ内の `LiteLLMBackend` から `litellm.completion()` を呼び出します。
+外部CLIの起動はBridgeのCLIアダプターが担当します。
+LiteLLM公式の [Claude Code連携](https://docs.litellm.ai/docs/proxy/client_setup/claude_code) は、
+Claude CodeからLiteLLMのAPIゲートウェイへ接続する方式で、BridgeからCLIを起動する方式とは別です。
 Ollamaは `ollama_chat`、Azure OpenAIは `azure` アダプターを使用します。
 Azure v1用のOpenAIクライアントと、接続先を制御したhttpxクライアントを明示的に渡します。
 生成要求の組み立てと送信はSDKに任せ、共有設定、認証、ローカル判定、応答の妥当性は本パッケージが担当します。
@@ -57,10 +60,13 @@ Claude Code のスキーマは製品仕様に合わせて引数へ渡すため�
 | Codex | `exec`、`--ephemeral`、`--ignore-user-config`、`--sandbox read-only`、`--output-schema` | 最終出力ファイル、JSONLの利用量 |
 | Claude Code | `-p`、`--json-schema`、`--tools ""`、`--permission-mode dontAsk`、MCP設定制限、セッション保存無効 | `structured_output`、usage、取得できるモデル情報 |
 | GitHub Copilot | silentモード、標準入力、組み込みMCPとカスタム指示の無効化、read/write/shell/url/memory拒否 | JSON本文。実モデル・利用量は不明 |
+| Google Antigravity | `agy`、入出力 `stream-json`、`--json-schema`、`--disable-slash-commands`、`--mode plan`、`--sandbox` | 最終resultの `structured_output` とusage。実モデルは不明 |
 
 Codex のユーザー設定は読みませんが、認証には通常の CODEX_HOME を使います。
 Claude Code は一時フォルダの project 設定だけを読みます。
-Copilot のユーザー設定由来のMCP・拡張など、製品側の機能を完全に隔離する契約はありません。
+Copilot と Antigravity のユーザー設定由来のMCP・拡張など、製品側の機能を完全に隔離する契約はありません。
+Antigravity は通常のユーザー認証・設定を使い、ツールを完全には無効化しません。
+計画モード・サンドボックスの制限は agy が適用し、Bridgeはユーザーの権限設定を変更しません。
 個人情報のローカル限定処理には、`local_only` を指定した Ollama を使ってください。
 
 Codexの `turn.completed.usage` は各ターンの報告として集計します。
@@ -69,16 +75,28 @@ Codexの `turn.completed.usage` は各ターンの報告として集計します
 利用量の定義は [Codex SDKのイベント型](https://github.com/openai/codex/blob/main/sdk/typescript/src/events.ts)、
 公開する総量・小計の契約は [コスト概算](costs.md#総量既知小計完全性) を参照してください。
 
+AntigravityにはNDJSONのuserイベントを1件だけ標準入力で渡し、EOFで終了させます。
+JSON Schemaは一時ファイルで渡し、単一の最終resultが `status: SUCCESS` かつ
+`structured_output` がオブジェクトの場合だけ共通のスキーマ検証へ進みます。
+最終resultのusageはセッション累計なので、途中のstep利用量とは加算しません。
+`cache_read_tokens` と `thinking_tokens` を共通のキャッシュ読取・推論tokenへ対応付けます。
+非ゼロ終了・タイムアウト・不正なストリーム・失敗statusでは、最終resultから読めた利用量を既知小計として保持します。
+最終resultを受信していなければ利用量は不明です。
+initイベントのmodelは指定値の反映なので、実モデル名として記録しません。
+agyの内部待機は `--print-timeout 0s` にし、Bridgeの `timeout_seconds` でプロセスを制限します。
+`--log-file` は一時ディレクトリ内を指定しますが、agy自身による会話・キャッシュ等の保存は製品側の管理です。
+
 Windowsではタイムアウト時に起動したプロセスのPIDを指定して子プロセスも終了させます。
 Linuxでは実行専用のプロセスグループを終了させますが、実動作は未検証です。
 外部CLI自身が記録するログやキャッシュまで無保存を保証するものではありません。
 
 導入済みCLIがこれらのオプションを持たない場合は、対応するCLIへ更新してください。
 保護オプションを外して自動的に再実行することはありません。
-CodexとClaude Codeのローカルヘルプを確認しています。
+Codex・Claude Code・Antigravityのローカルヘルプを確認しています。
+Antigravityの通信・認証を伴う生成は未検証で、プロトコルは公式仕様と模擬実行で検証しています。
 Copilotは公式仕様と模擬実行で確認し、この環境の実行ファイルは動作確認できていません。
 
-公式資料: [Codex非対話実行](https://learn.chatgpt.com/docs/developer-commands#codex-exec)、[Claude Code CLI](https://code.claude.com/docs/en/cli-reference)、[GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference)。
+公式資料: [Codex非対話実行](https://learn.chatgpt.com/docs/developer-commands#codex-exec)、[Claude Code CLI](https://code.claude.com/docs/en/cli-reference)、[GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference)、[Antigravity headless mode](https://antigravity.google/docs/cli/headless/)。
 
 ## Ollama
 

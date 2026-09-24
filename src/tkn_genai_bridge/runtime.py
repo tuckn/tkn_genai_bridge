@@ -12,7 +12,15 @@ from types import TracebackType
 from ._version import __version__
 from .costs import estimate_tokens, profile_cost
 from .errors import GenAIError, ProviderError
-from .models import GenerationPlan, GenerationRecord, GenerationRequest, GenerationResult, Profile, Usage
+from .models import (
+    CLI_EXECUTABLES,
+    GenerationPlan,
+    GenerationRecord,
+    GenerationRequest,
+    GenerationResult,
+    Profile,
+    Usage,
+)
 from .provenance import generation_settings_hash
 from .providers.base import Backend, ProviderResponse
 from .providers.cli import CliBackend, resolve_executable
@@ -72,7 +80,7 @@ class Runtime:
     ) -> GenerationPlan:
         self._ensure_open()
         prepare_validator(request)
-        if check_executable and self.profile.provider in {"codex", "claude-code", "github-copilot"}:
+        if check_executable and self.profile.provider in CLI_EXECUTABLES:
             resolve_executable(self.profile)
         prompt_hash, schema_hash = fingerprints(request)
         tokens = estimate_tokens(

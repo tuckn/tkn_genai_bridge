@@ -14,22 +14,22 @@ from pathlib import Path
 from typing import Any
 
 from ..errors import GenAIError, ProviderError
-from ..models import GenerationRequest, Profile, ResponseMetadata, TokenCounts, Usage
+from ..models import CLI_EXECUTABLES, GenerationRequest, Profile, ResponseMetadata, TokenCounts, Usage
 from ..usage import summarize_usage
 from ..validation import parse_object
 from .base import ProviderResponse, model_name, number, preserve_metadata
 
-_EXECUTABLES = {"codex": "codex", "claude-code": "claude", "github-copilot": "copilot"}
-
 
 def resolve_executable(profile: Profile) -> str:
     name = (
-        profile.cli.executable if profile.cli and profile.cli.executable else _EXECUTABLES[profile.provider]
+        profile.cli.executable
+        if profile.cli and profile.cli.executable
+        else CLI_EXECUTABLES[profile.provider]
     )
     candidate = Path(name).expanduser()
     found = str(candidate.resolve()) if candidate.is_file() else shutil.which(name)
     if not found and os.name == "nt":
-        command = _EXECUTABLES[profile.provider]
+        command = CLI_EXECUTABLES[profile.provider]
         if name.casefold() in {command, f"{command}.exe"}:
             candidates = [Path.home() / ".local" / "bin" / f"{command}.exe"]
             if os.getenv("LOCALAPPDATA"):
@@ -106,6 +106,8 @@ def _process_metadata(stdout: str, provider: str | None) -> ResponseMetadata | N
     if provider == "codex":
         model, usage = _codex_metadata(stdout, interrupted=True)
         return ResponseMetadata(response_model=model, usage=usage)
+    if provider == "antigravity":
+        return _antigravity_result(stdout, interrupted=True)[1]
     if provider == "claude-code":
         try:
             return _claude_metadata(parse_object(stdout), interrupted=True)
@@ -234,6 +236,52 @@ def _claude_metadata(envelope: dict[str, Any], *, interrupted: bool = False) -> 
     )
 
 
+def _antigravity_result(
+    stdout: str, *, interrupted: bool = False
+) -> tuple[dict[str, Any] | None, ResponseMetadata, bool]:
+    """Read a single-turn NDJSON result; usage on the result is cumulative."""
+    envelope = None
+    valid = True
+    for line in stdout.splitlines():
+        if not line.strip():
+            continue
+        if envelope is not None:
+            valid = False  # Exactly one terminal result, with no following events.
+        try:
+            event = json.loads(line)
+        except ValueError:
+            valid = False
+            continue
+        if not isinstance(event, dict):
+            valid = False
+            continue
+        if event.get("event") == "result":
+            result = event.get("result")
+            if not isinstance(result, dict):
+                valid = False
+                continue
+            envelope = result
+    if envelope is None:
+        return None, ResponseMetadata(), False
+    counts = envelope.get("usage")
+    if not isinstance(counts, dict):
+        counts = {}
+    fragment = TokenCounts(
+        input_tokens=number(counts.get("input_tokens")),
+        output_tokens=number(counts.get("output_tokens")),
+        cached_input_tokens=number(counts.get("cache_read_tokens")),
+        reasoning_tokens=number(counts.get("thinking_tokens")),
+    )
+    # init.model echoes a requested override; it is not an observed response model.
+    metadata = ResponseMetadata(
+        usage=summarize_usage(
+            [fragment] if counts else [],
+            complete=valid and not interrupted and envelope.get("status") == "SUCCESS",
+        )
+    )
+    return envelope, metadata, valid
+
+
 class CliBackend:
     def generate(self, profile: Profile, request: GenerationRequest) -> ProviderResponse:
         executable = resolve_executable(profile)
@@ -281,6 +329,32 @@ class CliBackend:
                     "--no-chrome",
                     "--no-session-persistence",
                 ]
+            elif profile.provider == "antigravity":
+                schema_path = cwd / "schema.json"
+                schema_path.write_text(
+                    json.dumps(request.output_schema, ensure_ascii=False), encoding="utf-8"
+                )
+                command += [
+                    "--input-format",
+                    "stream-json",
+                    "--output-format",
+                    "stream-json",
+                    "--json-schema",
+                    str(schema_path),
+                    "--disable-slash-commands",
+                    "--mode",
+                    "plan",
+                    "--sandbox",
+                    "--print-timeout",
+                    "0s",
+                    "--log-file",
+                    str(cwd / "agy.log"),
+                ]
+                # One user event, then communicate() closes stdin after writing it.
+                prompt = (
+                    json.dumps({"event": "user", "message": {"content": request.prompt}}, ensure_ascii=False)
+                    + "\n"
+                )
             else:
                 command += [
                     "-s",
@@ -315,6 +389,22 @@ class CliBackend:
                             "Codex completed without a readable output file", code="missing_output"
                         ) from None
                     return ProviderResponse(parse_object(output), model, usage)
+            if profile.provider == "antigravity":
+                envelope, metadata, valid = _antigravity_result(stdout)
+                with preserve_metadata(metadata):
+                    if envelope is None:
+                        raise ProviderError("Antigravity returned no result event", code="missing_output")
+                    if not valid or envelope.get("status") != "SUCCESS":
+                        raise ProviderError(
+                            "Antigravity returned an unsuccessful or invalid result",
+                            code="incomplete_response",
+                        )
+                    data = envelope.get("structured_output")
+                    if not isinstance(data, dict):
+                        raise ProviderError(
+                            "Antigravity returned no structured_output", code="missing_output"
+                        )
+                    return ProviderResponse(data, metadata.response_model, metadata.usage)
             envelope = parse_object(stdout)
             if profile.provider == "github-copilot":
                 return ProviderResponse(envelope)  # Silent text mode has no reliable usage/model metadata.

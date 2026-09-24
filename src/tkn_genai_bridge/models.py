@@ -8,11 +8,18 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
-Provider = Literal["codex", "claude-code", "github-copilot", "ollama", "azure-openai"]
+Provider = Literal["codex", "claude-code", "github-copilot", "antigravity", "ollama", "azure-openai"]
+CLI_EXECUTABLES = {
+    "codex": "codex",
+    "claude-code": "claude",
+    "github-copilot": "copilot",
+    "antigravity": "agy",
+}
 PROVIDER_NAMES = {
     "codex": "Codex",
     "claude-code": "Claude Code",
     "github-copilot": "GitHub Copilot",
+    "antigravity": "Google Antigravity",
     "ollama": "Ollama",
     "azure-openai": "Azure OpenAI",
 }
@@ -184,6 +191,7 @@ class Profile(StrictModel):
             "codex": {"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"},
             "claude-code": {"low", "medium", "high", "xhigh", "max"},
             "github-copilot": {"low", "medium", "high", "xhigh", "max"},
+            "antigravity": {"low", "medium", "high"},
             "azure-openai": {"none", "minimal", "low", "medium", "high", "xhigh"},
         }
         if self.reasoning_effort is not None and self.reasoning_effort not in allowed.get(

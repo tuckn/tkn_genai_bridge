@@ -1,41 +1,53 @@
 schema_version: "1.1.0"
 default_profile: codex-default
 profiles:
+  # 以下は接続プロファイルの設定例です。
+  # model と endpoint は自分の環境に合わせて変更してください。
+
+  # CLI
   codex-default:
     provider: codex
     # null は Codex CLI の既定モデル。固定する場合は利用可能なモデル名を指定します。
     model: null
     timeout_seconds: 300.0
+  claude-default:
+    provider: claude-code
+    model: null
+  copilot-default:
+    provider: github-copilot
+    model: null
+  antigravity-default:
+    provider: antigravity
+    # null は agy の既定モデル。固定する場合は agy models のモデル名を指定します。
+    model: null
+    timeout_seconds: 300.0
+    cli:
+      executable: agy
 
-# 以下は profiles に追加する接続プロファイルの例です。
-# model と endpoint は自分の環境に合わせて変更してください。
-#  local:
-#    provider: ollama
-#    model: your-local-model
-#    local_only: true
-#    max_output_tokens: 2048
-#    ollama:
-#      base_url: http://127.0.0.1:11434
-#      think: false
-#  azure-quality:
-#    provider: azure-openai
-#    model: your-deployment-name
-#    max_output_tokens: 4096
-#    # 任意の参考単価。下記は架空値であり、現在の価格ではありません。
-#    pricing:
-#      your-deployment-name:
-#        currency: JPY
-#        pricing_date: "2026-01-01"
-#        input_per_million: 30.0
-#        output_per_million: 180.0
-#        cache_policy: no-cache
-#    azure:
-#      endpoint: https://your-resource.openai.azure.com/openai/v1
-#      auth: api_key
-#      api_key_env: AZURE_OPENAI_API_KEY
-#  claude-default:
-#    provider: claude-code
-#    model: null
-#  copilot-default:
-#    provider: github-copilot
-#    model: null
+  # Local API
+  local:
+    provider: ollama
+    model: your-local-model
+    local_only: true
+    max_output_tokens: 2048
+    ollama:
+      base_url: http://127.0.0.1:11434
+      think: false
+
+  # Cloud API
+  azure-quality:
+    provider: azure-openai
+    model: your-deployment-name
+    max_output_tokens: 4096
+    # 任意の参考単価。下記は架空値であり、現在の価格ではありません。
+    pricing:
+      your-deployment-name:
+        currency: JPY
+        pricing_date: "2026-01-01"
+        input_per_million: 30.0
+        output_per_million: 180.0
+        cache_policy: no-cache
+    azure:
+      endpoint: https://your-resource.openai.azure.com/openai/v1
+      auth: api_key
+      api_key_env: AZURE_OPENAI_API_KEY

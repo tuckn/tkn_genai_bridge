@@ -5,7 +5,7 @@ Python で作成した複数の CLI から、同じ API と接続設定で生成
 生成前のtoken概算と、設定した参考単価によるコスト概算も通信なしで計算できます。
 
 利用側の CLI は、プロンプトと期待する出力形式（JSON Schema）を用意し、接続プロファイルを指定して Bridge を呼び出します。
-接続プロファイルを変えることで、同じ呼び出し方で Codex、Claude Code、GitHub Copilot、Ollama、Azure OpenAI を利用できます。
+接続プロファイルを変えることで、同じ呼び出し方で Codex、Claude Code、GitHub Copilot、Google Antigravity（agy）、Ollama、Azure OpenAI を利用できます。
 正常に生成・検証できた場合の流れは次のとおりです。
 
 ```mermaid
@@ -41,7 +41,7 @@ sequenceDiagram
 flowchart LR
     A["Python CLI"] --> B["本Bridge"]
     C["共有接続プロファイル"] --> B
-    B --> D["CLI: Codex / Claude Code / Copilot"]
+    B --> D["CLI: Codex / Claude Code / Copilot / agy"]
     B --> E["LiteLLM Python SDK"]
     E --> G["Ollama / Azure OpenAI"]
     D --> F["JSON検証・実行情報"]
@@ -53,7 +53,7 @@ flowchart LR
 接続先への呼び出しをこの Python パッケージに集約します。
 Ollama と Azure OpenAI への生成要求には [LiteLLM Python SDK](https://docs.litellm.ai/docs/) を使います。
 共通パッケージが設定・認証・ローカル限定の確認・出力検証・実行記録を担当し、LiteLLM が API ごとの要求形式と呼び出しを担当します。
-Codex・Claude Code・GitHub Copilot は CLI アダプターで呼び出します。
+Codex・Claude Code・GitHub Copilot・Google Antigravity は CLI アダプターで呼び出します。
 LiteLLM Proxy や Docker の起動、各 CLI での LiteLLM の直接利用は不要です。
 
 ## セットアップ
@@ -95,6 +95,8 @@ tkn-genai-bridge config show --no-project-config
 Codex CLI のログイン済み認証を使い、モデルは CLI の既定値を使います。
 モデルを固定したい場合は、その環境で利用可能なモデル名を `model` に指定します。
 共有設定の具体例は [設定仕様](docs/reference/configuration.md) を参照してください。
+Google Antigravity CLI を使う場合は、事前に `agy` でログインし、`--profile antigravity-default` を指定します。
+`model: null` は agy の既定モデルを使い、固定する場合は `agy models` でモデル名を確認します。
 
 ## 最初の実行と結果確認
 

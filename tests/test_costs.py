@@ -168,7 +168,9 @@ def test_invalid_token_counts_are_rejected(value):
         Usage(input_tokens=value)
 
 
-@pytest.mark.parametrize("provider", ["codex", "claude-code", "github-copilot", "ollama", "azure-openai"])
+@pytest.mark.parametrize(
+    "provider", ["codex", "claude-code", "github-copilot", "antigravity", "ollama", "azure-openai"]
+)
 def test_plan_is_offline_and_distinguishes_estimates(provider, request_object, monkeypatch, tmp_path):
     def forbidden(*args, **kwargs):
         pytest.fail("offline plan must not call network, auth, process or SDK")

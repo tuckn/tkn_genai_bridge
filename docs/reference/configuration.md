@@ -49,7 +49,7 @@ APIキーの環境変数名は表示しますが、環境変数の値を取得�
 | キー | 既定値 | 意味 |
 | --- | --- | --- |
 | `pricing` | `{}` | モデル／Azureデプロイ名から参考単価へのマッピング。[コスト概算](costs.md)を参照 |
-| `provider` | `codex` | `codex` / `claude-code` / `github-copilot` / `ollama` / `azure-openai` |
+| `provider` | `codex` | `codex` / `claude-code` / `github-copilot` / `antigravity` / `ollama` / `azure-openai` |
 | `model` | `null` | CLIでは製品の既定モデル。APIでは必須。Azureではデプロイ名 |
 | `reasoning_effort` | `null` | 省略時は送信しない。接続先とモデルが対応する値を指定 |
 | `timeout_seconds` | `300.0` | 正の秒数。上限86400。CLIプロセスの待機／HTTP各I/Oの待機 |
@@ -70,6 +70,7 @@ APIキーの環境変数名は表示しますが、環境変数の値を取得�
 | --- | --- |
 | Codex | `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`、`ultra` |
 | Claude Code / GitHub Copilot | `low`、`medium`、`high`、`xhigh`、`max` |
+| Google Antigravity | `low`、`medium`、`high` |
 | Azure OpenAI | `none`、`minimal`、`low`、`medium`、`high`、`xhigh` |
 | Ollama | この項目は拒否。`ollama.think` を使用 |
 
@@ -82,7 +83,7 @@ Azure の認証待機は認証ライブラリが管理するため、`timeout_se
 ### CLI
 
 `cli.executable` は実行ファイル名またはパスです。
-省略時は `codex`、`claude`、`copilot` を PATH から探し、Windows の既知のインストール先を補完します。
+省略時は `codex`、`claude`、`copilot`、`agy` を PATH から探し、Windows の既知のインストール先を補完します。
 相対パスは呼び出し時の作業ディレクトリ、`~` はホームを基準にします。
 
 `.cmd`、`.bat`、`.ps1` のシェル中継は実行しません。
@@ -123,7 +124,7 @@ Codex の WindowsApps ランチャーも拒否します。
 補助CLIはコールバックを受け付けないため、この認証方式では生成できません。
 利用側が認証やトークンの再利用を管理する場合に使えます。
 
-## 5種類のプロファイルを定義する例
+## 6種類のプロファイルを定義する例
 
 次の内容で共有設定を置き換えられます。
 `your-local-model`、`your-deployment-name`、`your-resource` を実際の値へ変更してください。
@@ -142,6 +143,12 @@ profiles:
   copilot-default:
     provider: github-copilot
     model: null
+  antigravity-default:
+    provider: antigravity
+    model: null
+    timeout_seconds: 300.0
+    cli:
+      executable: agy
   local:
     provider: ollama
     model: your-local-model
