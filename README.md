@@ -24,7 +24,7 @@ sequenceDiagram
 ```
 
 初めて使う場合は「セットアップ」から「Python CLI に組み込む」まで進めてください。
-設定の全項目は [設定仕様](docs/reference/configuration.md)、既存実装の切り出し方は [移行ガイド](docs/guides/migration.md) にまとめています。
+既存アプリへの導入は「[既存の生成処理を置き換える](#既存の生成処理を置き換える)」、設定の全項目は [設定仕様](docs/reference/configuration.md)、バージョンごとの変更と互換性は [変更履歴](CHANGELOG.md) を参照してください。
 
 ## 担当する範囲
 
@@ -179,6 +179,19 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 実用のプロンプトとスキーマは利用側パッケージのリソースに置いてください。
 実行できるサンプルは [examples/use_runtime.py](examples/use_runtime.py)、例外と結果の契約は [Python API](docs/reference/api.md) にあります。
 
+### 既存の生成処理を置き換える
+
+既存アプリに導入する開発者は、接続先への呼び出し部分を `Runtime` に置き換えます。
+入力の加工、内容・出典の検証、予算管理、保存・再開は利用側に保持します。
+
+1. 利用側の依存関係に Bridge を追加し、使用するバージョンを固定します。
+2. 接続先・モデル・認証を [接続プロファイル](docs/reference/configuration.md) に設定し、利用側から選択できるようにします。アプリ固有の設定は利用側に残します。
+3. 生成前の確認には `plan()`、本実行には `generate()` を使います。dry-run では `plan()` までにとどめ、本実行の直前に利用側の予算・回数上限を確認します。
+4. `result.data` の内容を元データと照合してから、既存の保存処理へ渡します。`result.record` と失敗時の `GenAIError.record` は、利用側の記録形式に合わせて保存します。
+5. 匿名の入力・応答で、生成結果、失敗、利用量の記録、再開動作を確認します。実サービスでの確認は送信可能な入力と費用を確認してから行い、利用側CLIを再インストールします。
+
+戻り値・失敗記録・再生成判定の詳細は [Python API](docs/reference/api.md)、予算確認に使う値は [token・コスト概算](docs/reference/costs.md) を参照してください。
+
 ## token・コストを確認する
 
 `runtime.plan(request)` は `token_estimate` と `cost_estimate` を返します。
@@ -268,6 +281,7 @@ tkn-genai-bridge --version
 
 各アプリケーションは別々の環境に依存パッケージを持つため、共通パッケージを編集しただけでは更新されません。
 利用側で依存バージョンを更新してロックファイルを確認し、利用側CLIも再インストールしてください。
+更新前に [変更履歴](CHANGELOG.md) の対象バージョンを読み、設定・保存済み記録・読み取り処理への影響を確認してください。
 
 開発環境の作成と確認は次の手順です。
 
@@ -280,6 +294,9 @@ uv run mypy src
 uv build
 ```
 
+> **VS Code で開発する場合**：ターミナルで `.venv` が自動有効化されることがありますが、`uv run` の利用に有効化は不要です。
+> 有効化中は開発用 CLI が優先されるため、`uv tool install . --reinstall` で更新した CLI の動作確認は、`deactivate` で解除してから行ってください。
+
 ソースは `src/tkn_genai_bridge/`、テストは `tests/`、配布する設定と指示文は `src/tkn_genai_bridge/resources/` にあります。
 テストはフレームワークが管理する一時領域を使い、実際の共有設定を変更しません。
 
@@ -289,7 +306,6 @@ uv build
 - [Python API・失敗時の扱い](docs/reference/api.md)
 - [token・コスト概算と単価設定](docs/reference/costs.md)
 - [プロバイダーごとの接続仕様と公式資料](docs/reference/providers.md)
-- [既存CLIからの移行手順](docs/guides/migration.md)
 - [変更履歴](CHANGELOG.md)
 - [MIT License](LICENSE)
 
