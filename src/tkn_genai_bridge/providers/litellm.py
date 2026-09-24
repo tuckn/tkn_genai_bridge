@@ -18,7 +18,7 @@ from ..models import GenerationRequest, OllamaSettings, Profile, ResponseMetadat
 from ..validation import parse_object
 from .base import ProviderResponse
 from .cli import schema_prompt
-from .http import TokenProvider, azure_headers, post, provider_response
+from .http import TokenProvider, azure_headers, http_error, post, provider_response
 
 _lock = Lock()
 _sdk: ModuleType | None = None
@@ -83,11 +83,7 @@ class _ResponseGuard:
     def __call__(self, response: httpx.Response) -> None:
         try:
             if response.status_code != 200:
-                raise ProviderError(
-                    f"API returned HTTP {response.status_code}",
-                    code=f"http_{response.status_code}",
-                    retryable=response.status_code in {429, 500, 502, 503, 504},
-                )
+                raise http_error(response)
             response.read()
             self.response = provider_response(parse_object(response.text), local=self.local)
         except GenAIError as exc:

@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Any
 
 from ..errors import GenAIError, ProviderError
-from ..models import GenerationRequest, Profile, ResponseMetadata, Usage
+from ..models import GenerationRequest, Profile, ResponseMetadata, TokenCounts, Usage
+from ..usage import summarize_usage
 from ..validation import parse_object
 from .base import ProviderResponse, model_name, number, preserve_metadata
 
@@ -67,7 +68,7 @@ def schema_prompt(request: GenerationRequest) -> str:
     )
 
 
-def _stop_process(process: subprocess.Popen[str]) -> None:
+def _stop_process(process: subprocess.Popen[str]) -> str | None:
     if sys.platform == "win32":
         # Limit cleanup to this invocation's process tree, never to executable names.
         try:
@@ -87,12 +88,30 @@ def _stop_process(process: subprocess.Popen[str]) -> None:
     if process.poll() is None:
         process.kill()
     try:
-        process.communicate(timeout=5)
-    except subprocess.TimeoutExpired:
+        stdout, _stderr = process.communicate(timeout=5)
+        return stdout
+    except subprocess.TimeoutExpired as exc:
         # Do not wait indefinitely for inherited pipes held by an escaped child.
         for pipe in (process.stdin, process.stdout, process.stderr):
             if pipe is not None:
                 pipe.close()
+        return _stdout_text(exc.output)
+
+
+def _stdout_text(value: str | bytes | None) -> str | None:
+    return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+
+
+def _process_metadata(stdout: str, provider: str | None) -> ResponseMetadata | None:
+    if provider == "codex":
+        model, usage = _codex_metadata(stdout, interrupted=True)
+        return ResponseMetadata(response_model=model, usage=usage)
+    if provider == "claude-code":
+        try:
+            return _claude_metadata(parse_object(stdout), interrupted=True)
+        except GenAIError:
+            pass
+    return None
 
 
 def run_process(
@@ -113,13 +132,17 @@ def run_process(
         )
         try:
             stdout, _stderr = process.communicate(prompt, timeout=timeout)
-        except subprocess.TimeoutExpired:
-            _stop_process(process)
-            raise ProviderError(
+        except subprocess.TimeoutExpired as exc:
+            # communicate() after timeout returns the complete buffered stream; never concatenate it.
+            stopped_stdout = _stop_process(process)
+            captured = stopped_stdout if stopped_stdout is not None else _stdout_text(exc.output)
+            error = ProviderError(
                 "provider timed out; submission and billing may be unknown",
                 code="timeout",
                 submission_unknown=True,
-            ) from None
+            )
+            error.metadata = _process_metadata(captured or "", provider)
+            raise error from None
         except KeyboardInterrupt:
             _stop_process(process)
             raise
@@ -133,41 +156,62 @@ def run_process(
             code="process_exit",
             submission_unknown=True,
         )
-        if provider == "codex":
-            model, usage = _codex_metadata(stdout)
-            error.metadata = ResponseMetadata(response_model=model, usage=usage)
-        elif provider == "claude-code":
-            try:
-                error.metadata = _claude_metadata(parse_object(stdout))
-            except GenAIError:
-                pass  # A malformed envelope has no reliably extractable metadata.
+        error.metadata = _process_metadata(stdout, provider)
         raise error
     return stdout
 
 
-def _codex_metadata(stdout: str) -> tuple[str | None, Usage]:
+def _codex_metadata(stdout: str, *, interrupted: bool = False) -> tuple[str | None, Usage]:
+    """Account for completed turns; never mistake a truncated stream for a full total."""
     response_model = None
-    counts: dict[str, Any] = {}
+    fragments: list[TokenCounts] = []
+    stream_complete = not interrupted
+    turn_open = False
+    saw_start = False
     for line in stdout.splitlines():
+        if not line.strip():
+            continue
         try:
             event = json.loads(line)
         except ValueError:
+            stream_complete = False
             continue
         if not isinstance(event, dict):
+            stream_complete = False
             continue
         response_model = model_name(event.get("model")) or response_model
-        if event.get("type") == "turn.completed" and isinstance(event.get("usage"), dict):
-            counts = event["usage"]
-    return response_model, Usage(
-        input_tokens=number(counts.get("input_tokens")),
-        output_tokens=number(counts.get("output_tokens")),
-        cached_input_tokens=number(counts.get("cached_input_tokens")),
-        reasoning_tokens=number(counts.get("reasoning_output_tokens")),
-        cache_write_tokens=number(counts.get("cache_write_tokens")),
-    )
+        kind = event.get("type")
+        if kind == "turn.started":
+            if turn_open:
+                stream_complete = False
+            turn_open = saw_start = True
+        elif kind == "turn.completed":
+            if not turn_open and (saw_start or fragments):
+                # An unmatched/repeated completion is not another independent usage fragment.
+                stream_complete = False
+                continue
+            turn_open = False
+            counts = event.get("usage")
+            if not isinstance(counts, dict):
+                counts = {}
+            fragments.append(
+                TokenCounts(
+                    input_tokens=number(counts.get("input_tokens")),
+                    output_tokens=number(counts.get("output_tokens")),
+                    cached_input_tokens=number(counts.get("cached_input_tokens")),
+                    reasoning_tokens=number(counts.get("reasoning_output_tokens")),
+                    cache_write_tokens=number(counts.get("cache_write_input_tokens"))
+                    if "cache_write_input_tokens" in counts
+                    else number(counts.get("cache_write_tokens")),
+                )
+            )
+        elif kind in {"turn.failed", "error"}:
+            stream_complete = False
+            turn_open = False
+    return response_model, summarize_usage(fragments, complete=stream_complete and not turn_open)
 
 
-def _claude_metadata(envelope: dict[str, Any]) -> ResponseMetadata:
+def _claude_metadata(envelope: dict[str, Any], *, interrupted: bool = False) -> ResponseMetadata:
     counts = envelope.get("usage") or {}
     if not isinstance(counts, dict):
         counts = {}
@@ -175,15 +219,18 @@ def _claude_metadata(envelope: dict[str, Any]) -> ResponseMetadata:
     model = model_name(envelope.get("model"))
     if model is None and isinstance(model_usage, dict) and len(model_usage) == 1:
         model = model_name(next(iter(model_usage)))
+    fragment = TokenCounts(
+        input_tokens=number(counts.get("input_tokens")),
+        output_tokens=number(counts.get("output_tokens")),
+        cached_input_tokens=number(counts.get("cache_read_input_tokens")),
+        cache_write_tokens=number(counts.get("cache_creation_input_tokens")),
+        input_tokens_scope="uncached",
+    )
+    # A terminal error envelope may still report the whole invocation's usage.
+    complete = not interrupted
     return ResponseMetadata(
         response_model=model,
-        usage=Usage(
-            input_tokens=number(counts.get("input_tokens")),
-            output_tokens=number(counts.get("output_tokens")),
-            cached_input_tokens=number(counts.get("cache_read_input_tokens")),
-            cache_write_tokens=number(counts.get("cache_creation_input_tokens")),
-            input_tokens_scope="uncached",
-        ),
+        usage=summarize_usage([fragment] if counts else [], complete=complete, scope="uncached"),
     )
 
 

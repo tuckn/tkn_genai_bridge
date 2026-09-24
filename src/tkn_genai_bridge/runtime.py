@@ -62,14 +62,26 @@ class Runtime:
         self.close()
 
     def plan(
-        self, request: GenerationRequest, *, check_executable: bool = False, output_tokens: int | None = None
+        self,
+        request: GenerationRequest,
+        *,
+        check_executable: bool = False,
+        output_tokens: int | None = None,
+        input_tokens: int | None = None,
+        input_tokens_method: str | None = None,
     ) -> GenerationPlan:
         self._ensure_open()
         prepare_validator(request)
         if check_executable and self.profile.provider in {"codex", "claude-code", "github-copilot"}:
             resolve_executable(self.profile)
         prompt_hash, schema_hash = fingerprints(request)
-        tokens = estimate_tokens(request, self.profile, output_tokens=output_tokens)
+        tokens = estimate_tokens(
+            request,
+            self.profile,
+            output_tokens=output_tokens,
+            input_tokens=input_tokens,
+            input_tokens_method=input_tokens_method,
+        )
         # Planning assumes no cache reuse. When observed write pricing is higher,
         # reserve that input rate for the entire visible prompt.
         price = self.profile.pricing.get(self.profile.model or "")

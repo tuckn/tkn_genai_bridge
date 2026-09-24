@@ -38,6 +38,10 @@ API生成時には次の方針で初期化します。
 SDKの正規化前に元のHTTP応答を確認します。
 不完全な終了・拒否・ツール呼び出しを成功扱いにせず、応答にないモデル名や利用量を推測で補いません。
 LiteLLMの価格計算や推定利用量は公開の `GenerationRecord` に含めません。
+HTTPエラーの状態コードと `Retry-After` をSDKの例外変換前に取り出し、`ProviderError` に引き継ぎます。
+Ollamaの事前確認も同じ契約です。秒数・HTTP日時を待機秒数へ変換し、不正値は不明にします。
+自動待機・再試行は行いません。仕様は [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3) と
+[Python API](api.md#例外) を参照してください。
 
 公式資料: [LiteLLM SDK](https://docs.litellm.ai/docs/)、[Ollama](https://docs.litellm.ai/docs/providers/ollama)、[Azure](https://docs.litellm.ai/docs/providers/azure)。
 
@@ -58,6 +62,12 @@ Codex のユーザー設定は読みませんが、認証には通常の CODEX_H
 Claude Code は一時フォルダの project 設定だけを読みます。
 Copilot のユーザー設定由来のMCP・拡張など、製品側の機能を完全に隔離する契約はありません。
 個人情報のローカル限定処理には、`local_only` を指定した Ollama を使ってください。
+
+Codexの `turn.completed.usage` は各ターンの報告として集計します。
+開始・完了イベントが対応しない場合や、後続の失敗・壊れたJSONL・非ゼロ終了・タイムアウトでは総量を確定せず、
+取得できた数値を `Usage.known_subtotal` に残します。受信バッファの再取得で二重加算しません。
+利用量の定義は [Codex SDKのイベント型](https://github.com/openai/codex/blob/main/sdk/typescript/src/events.ts)、
+公開する総量・小計の契約は [コスト概算](costs.md#総量既知小計完全性) を参照してください。
 
 Windowsではタイムアウト時に起動したプロセスのPIDを指定して子プロセスも終了させます。
 Linuxでは実行専用のプロセスグループを終了させますが、実動作は未検証です。

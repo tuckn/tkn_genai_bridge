@@ -6,6 +6,7 @@ import json
 import math
 from decimal import Decimal, localcontext
 
+from .errors import RequestError
 from .models import (
     CostBasis,
     CostEstimate,
@@ -20,13 +21,31 @@ from .providers.cli import schema_prompt
 
 
 def estimate_tokens(
-    request: GenerationRequest, profile: Profile, *, output_tokens: int | None = None
+    request: GenerationRequest,
+    profile: Profile,
+    *,
+    output_tokens: int | None = None,
+    input_tokens: int | None = None,
+    input_tokens_method: str | None = None,
 ) -> TokenEstimate:
     """Estimate the visible request envelope without SDKs, tokenizers, I/O writes or network.
 
     UTF-8 byte length plus a margin is deliberately coarse. Hidden provider prompts,
     tool turns and retries mean this is not a guaranteed bound on actual usage.
     """
+    if input_tokens_method is not None and input_tokens is None:
+        raise RequestError("input_tokens_method requires input_tokens", code="invalid_token_estimate")
+    if input_tokens is not None:
+        return TokenEstimate(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens if output_tokens is not None else profile.max_output_tokens,
+            method=input_tokens_method if input_tokens_method is not None else "caller-supplied",
+            input_tokens_source="caller",
+            margin_tokens=0,
+            output_tokens_source="caller"
+            if output_tokens is not None
+            else ("profile_limit" if profile.max_output_tokens is not None else "unknown"),
+        )
     envelope = {
         "messages": [
             {
@@ -82,6 +101,8 @@ def estimate_cost(
 
     if pricing is None:
         return result(reason="pricing_not_configured")
+    if usage.completeness == "partial":
+        return result(reason="usage_incomplete")
     if usage.input_tokens is None or usage.output_tokens is None:
         return result(reason="usage_missing")
     total_input = usage.input_tokens

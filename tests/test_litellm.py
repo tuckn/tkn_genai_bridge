@@ -65,7 +65,10 @@ def test_real_sdk_called_and_missing_server_metadata_stays_unknown(local, reques
     assert result.record.response_model is None
     assert result.record.usage.input_tokens_scope == "total"
     assert all(
-        value is None for value in result.record.usage.model_dump(exclude={"input_tokens_scope"}).values()
+        value is None
+        for value in result.record.usage.model_dump(
+            exclude={"input_tokens_scope", "completeness", "known_subtotal"}
+        ).values()
     )
 
 

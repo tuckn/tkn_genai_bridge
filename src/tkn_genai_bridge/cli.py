@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from . import __version__
 from .config import initialize_config, load_config, user_config_path
-from .errors import ConfigError, GenAIError, OutputValidationError, RequestError
+from .errors import ConfigError, GenAIError, OutputValidationError, ProviderError, RequestError
 from .logging_utils import SUCCESS, configure_logging
 from .models import GenerationRequest
 from .runtime import Runtime
@@ -54,6 +54,15 @@ def parser() -> argparse.ArgumentParser:
     generate.add_argument("--prompt-file", required=True, type=Path, help="UTF-8 の入力プロンプト")
     generate.add_argument("--schema-file", required=True, type=Path, help="UTF-8 の JSON Schema")
     generate.add_argument(
+        "--estimate-input-tokens",
+        type=int,
+        help="dry-run の入力token概算値。余裕分を含めた最終値を指定",
+    )
+    generate.add_argument(
+        "--estimate-input-method",
+        help="入力推定方法の識別名。--estimate-input-tokens と併用",
+    )
+    generate.add_argument(
         "--estimate-output-tokens",
         type=int,
         help="dry-run の出力token仮定値。生成条件や予算上限は変更しない",
@@ -91,9 +100,13 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(encoding="utf-8")
     argument_parser = parser()
     args = argument_parser.parse_args(argv)
-    if args.command == "generate" and args.estimate_output_tokens is not None:
-        if not args.dry_run or args.estimate_output_tokens < 0:
-            argument_parser.error("--estimate-output-tokens requires --dry-run and a non-negative integer")
+    if args.command == "generate":
+        estimates = (args.estimate_input_tokens, args.estimate_output_tokens)
+        if any(value is not None for value in estimates) or args.estimate_input_method is not None:
+            if not args.dry_run or any(value is not None and value < 0 for value in estimates):
+                argument_parser.error("token estimate options require --dry-run and non-negative integers")
+            if args.estimate_input_method is not None and args.estimate_input_tokens is None:
+                argument_parser.error("--estimate-input-method requires --estimate-input-tokens")
     logger = configure_logging(quiet=args.quiet, verbose=args.verbose)
     result: dict[str, Any]
     try:
@@ -122,7 +135,11 @@ def main(argv: list[str] | None = None) -> int:
                 with Runtime(resolved.profile()) as runtime:
                     if args.dry_run:
                         result = runtime.plan(
-                            request, check_executable=True, output_tokens=args.estimate_output_tokens
+                            request,
+                            check_executable=True,
+                            output_tokens=args.estimate_output_tokens,
+                            input_tokens=args.estimate_input_tokens,
+                            input_tokens_method=args.estimate_input_method,
                         ).model_dump()
                     else:
                         logger.info("Generating with %s", runtime.profile.provider)
@@ -133,6 +150,13 @@ def main(argv: list[str] | None = None) -> int:
     except GenAIError as exc:
         logger.error("%s: %s", exc.code, exc)
         result = {"error": {"code": exc.code, "message": str(exc)}}
+        if isinstance(exc, ProviderError):
+            result["error"].update(
+                http_status=exc.http_status,
+                retry_after_seconds=exc.retry_after_seconds,
+                retryable=exc.retryable,
+                submission_unknown=exc.submission_unknown,
+            )
         if exc.record:
             result["record"] = exc.record.model_dump()
         print(json.dumps(result, ensure_ascii=False))

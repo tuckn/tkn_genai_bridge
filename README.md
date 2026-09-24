@@ -123,6 +123,8 @@ tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-f
 再実行すると毎回新しい生成要求を送ります。
 パッケージは自動再試行、別接続先への切り替え、生成結果のキャッシュを行いません。
 失敗時は `error.code` を確認し、認証・設定・モデル・入力を修正してください。
+HTTPエラーでは `error.http_status` と `error.retry_after_seconds` から状態コードと待機目安を取得できます。
+待機・再試行の実行判断は利用側で行います。
 タイムアウトや通信断では、接続先で処理が完了したか、料金が発生したか分からないことがあります。
 
 ## Python CLI に組み込む
@@ -183,12 +185,16 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 入力tokenは、プロンプト・スキーマなどのUTF-8バイト数に余裕分を加えた粗い概算です。
 出力tokenは `max_output_tokens`、または `plan(request, output_tokens=1000)` の仮定値を使います。
 実際の使用量や料金の上限を保証する値ではありません。
+独自tokenizerや既存CLIの推定は、`plan(request, input_tokens=4200, input_tokens_method="local-tokenizer-v1")`
+で渡せます。Bridgeは余裕分を追加せず、指定値と推定方法を計画に残します。
 
 参考単価は、共有設定の `profiles.<name>.pricing.<model>` に通貨・基準日・100万tokenあたりの価格を設定します。
 Azureではモデル名の代わりにデプロイ名をキーにします。単価の取得・更新や為替換算は行いません。
 設定例と詳しい計算方法は [コスト概算](docs/reference/costs.md) を参照してください。
 
 生成後は `result.record.usage` に取得できたtoken数、`result.record.cost_estimate` に参考額が入ります。
+`usage.completeness` で全体が判明したかを区別し、途中失敗で判明した分は `usage.known_subtotal` に残します。
+部分利用量の総量・全額は不明として扱います。
 料金を更新しても保存済みのtoken数から `estimate_cost(usage, pricing)` で再計算できます。
 金額を計算できない場合は `amount: null` と理由を返します。未設定を無料とは扱いません。
 実行するか、上限超過で止めるかは利用側CLIが決めます。
@@ -209,7 +215,8 @@ Azureではモデル名の代わりにデプロイ名をキーにします。単
 | 生成前の確認         | 上記に`--dry-run` を追加                                   | 通信・認証・書き込みなし               |
 | バージョン確認       | `tkn-genai-bridge --version`                                      | インストール済みの版を表示             |
 
-dry-run専用の `--estimate-output-tokens` は0以上の整数です。
+dry-run専用の `--estimate-input-tokens` / `--estimate-output-tokens` は0以上の整数です。
+`--estimate-input-method` は入力推定値と併用し、その推定方法名を記録できます。
 設定確認と生成には `--profile`、`--model`、`--reasoning-effort`、`--timeout-seconds`、`--no-project-config` も使えます。
 引数エラーは終了コード `2`、生成失敗は非 `0`、正常終了は `0` です。
 

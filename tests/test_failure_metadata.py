@@ -167,7 +167,10 @@ def test_malformed_envelope_cannot_supply_metadata(request_object):
         )
     assert exc.value.record.response_model is None
     assert all(
-        value is None for value in exc.value.record.usage.model_dump(exclude={"input_tokens_scope"}).values()
+        value is None
+        for value in exc.value.record.usage.model_dump(
+            exclude={"input_tokens_scope", "completeness", "known_subtotal"}
+        ).values()
     )
 
 
@@ -185,5 +188,7 @@ def test_nonzero_process_exit_still_retains_reported_usage(provider, tmp_path):
         cli.run_process([sys.executable, "-c", script], "", tmp_path, 5, provider=provider)
     assert exc.value.code == "process_exit"
     assert exc.value.metadata.response_model == "actual"
-    assert exc.value.metadata.usage.output_tokens == 20
+    assert exc.value.metadata.usage.output_tokens is None
+    assert exc.value.metadata.usage.completeness == "partial"
+    assert exc.value.metadata.usage.known_subtotal.output_tokens == 20
     assert "PRIVATE" not in str(exc.value)

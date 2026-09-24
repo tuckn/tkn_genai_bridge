@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
+import re
 from collections.abc import Callable
 from contextlib import ExitStack
+from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -80,6 +84,34 @@ def azure_headers(
         ) from None
 
 
+def retry_after_seconds(value: str | None, *, now: datetime | None = None) -> float | None:
+    """RFC 9110 delay-seconds or HTTP-date; malformed headers stay unknown."""
+    if value is None or len(value) > 128:
+        return None
+    value = value.strip()
+    try:
+        if re.fullmatch(r"[0-9]+", value):
+            seconds = float(value)
+        else:
+            when = parsedate_to_datetime(value)
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=UTC)
+            seconds = max(0.0, (when - (now or datetime.now(UTC))).total_seconds())
+        return seconds if math.isfinite(seconds) else None
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
+def http_error(response: httpx.Response) -> ProviderError:
+    return ProviderError(
+        f"API returned HTTP {response.status_code}",
+        code=f"http_{response.status_code}",
+        retryable=response.status_code in {429, 500, 502, 503, 504},
+        http_status=response.status_code,
+        retry_after_seconds=retry_after_seconds(response.headers.get("retry-after")),
+    )
+
+
 def post(
     client: httpx.Client, url: str, body: dict[str, Any], headers: dict[str, str] | None = None
 ) -> dict[str, Any]:
@@ -98,11 +130,7 @@ def post(
             submission_unknown=True,
         ) from None
     if response.status_code != 200:
-        raise ProviderError(
-            f"API returned HTTP {response.status_code}",
-            code=f"http_{response.status_code}",
-            retryable=response.status_code in {429, 500, 502, 503, 504},
-        )
+        raise http_error(response)
     return parse_object(response.text)
 
 

@@ -1,5 +1,15 @@
 # 変更履歴
 
+## 0.6.0
+
+- `Usage.completeness` と `known_subtotal`、公開モデル `TokenCounts` を追加。Codexの完了ターンを集計し、途中失敗・非ゼロ終了・タイムアウト時は総量と既知小計を区別。
+- 一部しか判明していない利用量の金額は `usage_incomplete` として不明を返し、未取得分を0や事前概算で補完しない。
+- `Runtime.plan()` / `estimate_tokens()` に利用側の入力token推定値と方法名を指定可能に。追加のtokenizer依存・取得通信はなく、既定の推定方法は維持。
+- 補助CLIにdry-run専用 `--estimate-input-tokens` / `--estimate-input-method` を追加。
+- `ProviderError` と補助CLIのエラーJSONに `http_status` / `retry_after_seconds` を追加。HTTPの `Retry-After` は秒数・日時の両形式に対応。
+- 自動待機・再試行・予算管理は追加せず、引き続き利用側が判断。設定スキーマは1.1.0を維持。
+- 部分利用量、タイムアウト時の情報保持、独自推定値、実SDK経由のHTTPエラーのテストと利用ガイドを追加。
+
 ## 0.5.0
 
 - 通信不要のtoken概算と参考額を `Runtime.plan()` / `generate --dry-run` に追加。

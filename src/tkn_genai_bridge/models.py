@@ -215,7 +215,9 @@ class GenerationRequest(StrictModel):
     schema_name: str = Field(default="generated_output", pattern=r"^[A-Za-z0-9_-]{1,64}$")
 
 
-class Usage(StrictModel):
+class TokenCounts(StrictModel):
+    """Counts with a common input scope; null always means unreported."""
+
     input_tokens: int | None = Field(default=None, ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     cached_input_tokens: int | None = Field(default=None, ge=0)
@@ -225,17 +227,63 @@ class Usage(StrictModel):
     input_tokens_scope: Literal["total", "uncached"] = "total"
 
 
+class Usage(TokenCounts):
+    """Full-operation totals and, separately, the known subtotal of incomplete data."""
+
+    completeness: Literal["complete", "partial", "unknown"] = "unknown"
+    known_subtotal: TokenCounts | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_totals(cls, value: Any) -> Any:
+        # Existing callers supply totals directly; preserve that explicit contract.
+        if (
+            isinstance(value, dict)
+            and "completeness" not in value
+            and any(
+                value.get(name) is not None
+                for name in TokenCounts.model_fields
+                if name != "input_tokens_scope"
+            )
+        ):
+            return {**value, "completeness": "complete"}
+        return value
+
+    @model_validator(mode="after")
+    def separate_totals_and_subtotal(self) -> Usage:
+        names = [name for name in TokenCounts.model_fields if name != "input_tokens_scope"]
+        if self.completeness != "complete" and any(getattr(self, name) is not None for name in names):
+            raise ValueError("incomplete usage must put known counts in known_subtotal, not totals")
+        known = self.known_subtotal
+        if known is not None:
+            if known.input_tokens_scope != self.input_tokens_scope:
+                raise ValueError("subtotal must use the same input token scope")
+            if self.completeness == "unknown" and any(getattr(known, name) is not None for name in names):
+                raise ValueError("known counts require partial or complete usage")
+            for name in names:
+                total, subtotal = getattr(self, name), getattr(known, name)
+                if total is not None and subtotal is not None and subtotal > total:
+                    raise ValueError("known subtotal cannot exceed a reported total")
+        return self
+
+
 class TokenEstimate(StrictModel):
     input_tokens: int = Field(ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
-    method: Literal["utf8-bytes-plus-margin-v1"] = "utf8-bytes-plus-margin-v1"
-    margin_tokens: int = 512
+    method: str = Field(default="utf8-bytes-plus-margin-v1", pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,119}$")
+    input_tokens_source: Literal["builtin", "caller"] = "builtin"
+    margin_tokens: int = Field(default=512, ge=0)
     output_tokens_source: Literal["profile_limit", "caller", "unknown"] = "unknown"
 
 
 CostBasis = Literal["planned", "reported", "scenario"]
 CostUnavailableReason = Literal[
-    "pricing_not_configured", "usage_missing", "cache_usage_missing", "inconsistent_usage", "non_finite_cost"
+    "pricing_not_configured",
+    "usage_missing",
+    "usage_incomplete",
+    "cache_usage_missing",
+    "inconsistent_usage",
+    "non_finite_cost",
 ]
 
 
