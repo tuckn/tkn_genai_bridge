@@ -28,11 +28,11 @@ sequenceDiagram
 
 ## 担当する範囲
 
-| Tuckn GenAI Bridgeの担当範囲                        | 本パッケージを利用する側の担当範囲                          |
-| ---------------------------------------------------- | ----------------------------------------------------------- |
-| 接続先の選択、共通設定、認証方法、通信・外部プロセス | 入力ファイルの選択、分割・統合、用途に合ったプロンプト      |
-| タイムアウト、例外、JSON Schema 検証、実行情報       | 出典との照合、Markdown への整形、保存・再開 |
-| token概算、参考単価の設定、tokenからの金額計算 | 許容額・回数・tokenの上限、実行可否、処理全体の予算 |
+| Tuckn GenAI Bridgeの担当範囲                         | 本パッケージを利用する側の担当範囲                     |
+| ---------------------------------------------------- | ------------------------------------------------------ |
+| 接続先の選択、共通設定、認証方法、通信・外部プロセス | 入力ファイルの選択、分割・統合、用途に合ったプロンプト |
+| タイムアウト、例外、JSON Schema 検証、実行情報       | 出典との照合、Markdown への整形、保存・再開            |
+| token概算、参考単価の設定、tokenからの金額計算       | 許容額・回数・tokenの上限、実行可否、処理全体の予算    |
 
 以下の矢印は呼び出し関係です。
 接続プロファイルはモデル・接続先・認証方法をまとめた設定で、出力内容を定義するプロンプトやスキーマとは別に管理します。
@@ -59,15 +59,15 @@ LiteLLM Proxy や Docker の起動、各 CLI での LiteLLM の直接利用は�
 ## セットアップ
 
 Python 3.11 以上と [uv](https://docs.astral.sh/uv/) が必要です。
-動作確認は、Windows のみです。
+動作確認は Windows のみです。コマンドプロンプト（CMD）や Linux での実動作は未確認です。
 利用する接続先の CLI または生成AIサーバーを別途導入し、認証やモデルの準備を済ませてください。
 
 ### 補助CLIをインストールする
 
 設定管理や単独実行に使う `tkn-genai-bridge` をインストールします。
-例のパスを、このリポジトリを置いたフォルダに置き換えてください。
+コマンドはターミナルで実行します。パスの例は Windows 形式なので、利用環境に合わせて実際のフォルダのパスに置き換えてください。
 
-```powershell
+```Shell
 cd "C:\path\to\tkn_genai_bridge"
 uv tool install .
 tkn-genai-bridge --help
@@ -81,7 +81,7 @@ Azure OpenAI の API キー認証と Microsoft Entra ID 認証（ブラウザー
 
 ### 設定を行う
 
-```powershell
+```Shell
 tkn-genai-bridge config init --dry-run
 tkn-genai-bridge config init
 tkn-genai-bridge config show --no-project-config
@@ -100,15 +100,15 @@ Google Antigravity CLI を使う場合は、事前に `agy` でログインし�
 
 ### Claude Codeでログインする
 
-Claude Codeを使う場合は、Bridgeを実行するのと同じWindowsユーザーのPowerShellで認証します。
+Claude Codeを使う場合は、Bridgeを実行するのと同じOSユーザーのターミナルで認証します。
 claude.aiアカウントを使う場合の初回ログイン、または認証が無効になった場合の再ログインは次のコマンドです。
 
-```powershell
+```Shell
 claude auth login --claudeai
 claude auth status
 ```
 
-ブラウザーでログインし、認証コードが表示された場合は、コマンドを実行したPowerShellへ貼り付けてください。
+ブラウザーでログインし、認証コードが表示された場合は、コマンドを実行したターミナルへ貼り付けてください。
 認証コードやトークンをBridgeの設定ファイルに書く必要はありません。
 `claude auth status` の `loggedIn: true` やCLI画面の表示だけでは、実際の生成が成功する保証にはなりません。
 次節の実行例では `--profile claude-default` を指定し、サンプルで確認してください。
@@ -120,7 +120,7 @@ claude auth status
 
 リポジトリ直下の匿名サンプルで、設定・入力・実行ファイルを確認します。
 
-```powershell
+```Shell
 tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
 ```
 
@@ -132,7 +132,7 @@ dry-run は通信、認証、生成AIの呼び出し、ファイル作成を行�
 **次の通常実行はプロンプトとスキーマを接続先へ送り、API料金やサービスの利用枠を消費する場合があります。**
 `--dry-run` を外して実行します。
 
-```powershell
+```Shell
 tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json
 ```
 
@@ -153,7 +153,7 @@ HTTPエラーでは `error.http_status` と `error.retry_after_seconds` から�
 
 ローカル開発では、利用側のプロジェクトで次のように追加します。
 
-```powershell
+```Shell
 cd "C:\path\to\your_cli"
 uv add "C:\path\to\tkn_genai_bridge"
 uv run python -c "import tkn_genai_bridge; print(tkn_genai_bridge.__version__)"
@@ -240,12 +240,12 @@ Azureではモデル名の代わりにデプロイ名をキーにします。単
 共通の `--quiet` / `--verbose` はコマンドの前に指定し、同時には使えません。
 各コマンドの設定オプションはコマンドの後に指定します。
 
-| 目的                 | コマンド                                                     | 結果・副作用                           |
-| -------------------- | ------------------------------------------------------------ | -------------------------------------- |
+| 目的                 | コマンド                                                            | 結果・副作用                           |
+| -------------------- | ------------------------------------------------------------------- | -------------------------------------- |
 | 設定の作成           | `tkn-genai-bridge config init [--path PATH] [--dry-run]`          | 通常は設定ファイルを新規作成           |
 | 設定元と最終値の確認 | `tkn-genai-bridge config show [--config PATH] [--profile NAME]`   | 読み取りのみ。認証情報の値は解決しない |
 | 生成                 | `tkn-genai-bridge generate --prompt-file PATH --schema-file PATH` | 接続先へ送信し、JSON を表示            |
-| 生成前の確認         | 上記に`--dry-run` を追加                                   | 通信・認証・書き込みなし               |
+| 生成前の確認         | 上記に`--dry-run` を追加                                          | 通信・認証・書き込みなし               |
 | バージョン確認       | `tkn-genai-bridge --version`                                      | インストール済みの版を表示             |
 
 dry-run専用の `--estimate-input-tokens` / `--estimate-output-tokens` は0以上の整数です。
@@ -255,14 +255,14 @@ dry-run専用の `--estimate-input-tokens` / `--estimate-output-tokens` は0以�
 
 ## 対応範囲と注意点
 
-| 接続先         | 方式                                 | 事前に用意するもの                              |
-| -------------- | ------------------------------------ | ----------------------------------------------- |
-| Codex          | `codex exec`                       | 対応オプションを持つスタンドアロンCLIとログイン |
-| Claude Code    | `claude -p`                        | CLIと[ログイン済み認証](#claude-codeでログインする) |
-| GitHub Copilot | 標準入力＋silent出力                 | CLIと認証                                       |
-| Google Antigravity | `agy` のNDJSON入出力             | CLIとログイン済み認証                           |
-| Ollama         | LiteLLM SDK → ローカル`/api/chat` | サーバーと取得済みモデル                        |
-| Azure OpenAI   | LiteLLM SDK → v1 Chat Completions   | endpoint、デプロイ名、APIキーまたはEntra認証    |
+| 接続先             | 方式                                 | 事前に用意するもの                                 |
+| ------------------ | ------------------------------------ | -------------------------------------------------- |
+| Codex              | `codex exec`                       | 対応オプションを持つスタンドアロンCLIとログイン    |
+| Claude Code        | `claude -p`                        | CLIと[ログイン済み認証](#claude-codeでログインする) |
+| GitHub Copilot     | 標準入力＋silent出力                 | CLIと認証                                          |
+| Google Antigravity | `agy` のNDJSON入出力               | CLIとログイン済み認証                              |
+| Ollama             | LiteLLM SDK → ローカル`/api/chat` | サーバーと取得済みモデル                           |
+| Azure OpenAI       | LiteLLM SDK → v1 Chat Completions   | endpoint、デプロイ名、APIキーまたはEntra認証       |
 
 JSON Schema は Draft 2020-12 のオブジェクトを受け付け、生成後に元のスキーマで検証します。
 接続先が対応するスキーマの範囲は異なります。
@@ -295,7 +295,7 @@ SDK の価格表・トークナイザーは同梱データを使い、SDKログ�
 
 補助CLIを更新する場合は、更新済みリポジトリで再インストールします。
 
-```powershell
+```Shell
 cd "C:\path\to\tkn_genai_bridge"
 uv tool install . --reinstall
 tkn-genai-bridge --version
@@ -307,7 +307,7 @@ tkn-genai-bridge --version
 
 開発環境の作成と確認は次の手順です。
 
-```powershell
+```Shell
 cd "C:\path\to\tkn_genai_bridge"
 uv sync --locked
 uv run pytest

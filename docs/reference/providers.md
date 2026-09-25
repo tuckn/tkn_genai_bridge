@@ -60,12 +60,12 @@ CLIへ渡すコピーからルートの `$schema` だけを省略します。
 他のDraft向けにキーワードを変換するものではなく、CLIが対応しない制約は引き続き失敗する場合があります。
 参考: [Claude Codeの互換性報告](https://github.com/anthropics/claude-code/issues/80402)。
 
-| 接続先 | 主な制御 | 出力・情報 |
-| --- | --- | --- |
-| Codex | `exec`、`--ephemeral`、`--ignore-user-config`、`--sandbox read-only`、`--output-schema` | 最終出力ファイル、JSONLの利用量 |
-| Claude Code | `-p`、`--json-schema`、`--tools ""`、`--permission-mode dontAsk`、MCP設定制限、セッション保存無効 | `structured_output`、usage、取得できるモデル情報 |
-| GitHub Copilot | silentモード、標準入力、組み込みMCPとカスタム指示の無効化、read/write/shell/url/memory拒否 | JSON本文。実モデル・利用量は不明 |
-| Google Antigravity | `agy`、入出力 `stream-json`、`--json-schema`、`--disable-slash-commands`、`--mode plan`、`--sandbox` | 最終resultの `structured_output` とusage。実モデルは不明 |
+| 接続先             | 主な制御                                                                                                         | 出力・情報                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Codex              | `exec`、`--ephemeral`、`--ignore-user-config`、`--sandbox read-only`、`--output-schema`                | 最終出力ファイル、JSONLの利用量                           |
+| Claude Code        | `-p`、`--json-schema`、`--tools ""`、`--permission-mode dontAsk`、MCP設定制限、セッション保存無効        | `structured_output`、usage、取得できるモデル情報        |
+| GitHub Copilot     | silentモード、標準入力、組み込みMCPとカスタム指示の無効化、read/write/shell/url/memory拒否                       | JSON本文。実モデル・利用量は不明                          |
+| Google Antigravity | `agy`、入出力 `stream-json`、`--json-schema`、`--disable-slash-commands`、`--mode plan`、`--sandbox` | 最終resultの`structured_output` とusage。実モデルは不明 |
 
 Codex のユーザー設定は読みませんが、認証には通常の CODEX_HOME を使います。
 Claude Code は一時フォルダの project 設定だけを読みます。
@@ -108,21 +108,21 @@ Claude CodeはBridge 0.7.1のスキーマ互換修正と再ログイン後に、
 ### Claude Codeのログインと動作確認
 
 Bridgeは `claude -p` による非対話実行でClaude Codeを呼び出します。
-claude.aiアカウントで使う場合は、Claude Code CLIをインストールし、Bridgeと同じWindowsユーザーでログインしてください。
+claude.aiアカウントで使う場合は、Claude Code CLIをインストールし、Bridgeと同じOSユーザーでログインしてください。
 共有設定には `provider: claude-code` のプロファイルが必要です。同梱設定例の名前は `claude-default` です。
 以前に作成した設定にこのプロファイルがなければ、[設定例](configuration.md#6種類のプロファイルを定義する例) を参考に、既存の `profiles` へ追加します。
 
 #### 初回ログインと再ログイン
 
-自分で操作できるPowerShellで実行します。
+自分で操作できるターミナルで実行します。
 
-```powershell
+```Shell
 claude auth login --claudeai
 claude auth status
 ```
 
 開いたブラウザーで利用するclaude.aiアカウントにログインします。
-認証コードが表示された場合は、そのログインコマンドが待機しているPowerShellに貼り付け、ログイン完了を確認してください。
+認証コードが表示された場合は、そのログインコマンドが待機しているターミナルに貼り付け、ログイン完了を確認してください。
 認証コードやトークンをチャット、BridgeのYAML、リポジトリへ貼り付けないでください。
 
 認証情報はClaude Codeが管理します。Windowsでは通常 `%USERPROFILE%/.claude/.credentials.json` を使い、
@@ -133,9 +133,9 @@ Bridgeがこのファイルを編集したり、独自のClaude認証情報を�
 
 #### Bridgeから動作確認する
 
-リポジトリの匿名サンプルを使用します。以下はclaude-defaultが設定済みの場合の例です。
+リポジトリの匿名サンプルを使用します。以下はclaude-defaultが設定済みの場合の例です。パスは Windows 形式なので、利用環境に合わせてリポジトリを置いたフォルダのパスに置き換えてください。
 
-```powershell
+```Shell
 cd "C:\path\to\tkn_genai_bridge"
 tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
 ```
@@ -143,7 +143,7 @@ tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-
 dry-runは設定・入力・実行ファイルの存在を確認するだけで、ログインの有効性や生成は確認しません。
 認証を含めて確かめる場合は、次の通常実行を1回行います。**サービスの利用枠・クレジットを消費する場合があります。**
 
-```powershell
+```Shell
 tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json
 ```
 
@@ -154,14 +154,14 @@ tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-
 #### 生成に失敗する場合
 
 Bridgeの `process_exit` はCLIが異常終了したことを示すため、これだけで認証失敗とは断定できません。
-必要に応じて、同じPowerShellからClaude単体の短い非対話生成を試します。この確認も利用枠を消費する場合があります。
+必要に応じて、同じターミナルからClaude単体の短い非対話生成を試します。この確認も利用枠を消費する場合があります。
 
-```powershell
+```Shell
 claude -p "Reply only OK." --tools "" --no-session-persistence
 ```
 
 - **Claude側でHTTP 401や `OAuth access token is invalid` が表示される**: 保存済み認証が拒否されています。上記のログインコマンドで認証を更新し、Bridgeのサンプルを再実行してください。
-- **対話CLIでは返答を受け取れるがBridgeでは失敗する**: 同じ実行ファイル・Windowsユーザー・`CLAUDE_CONFIG_DIR` を使っているか確認してください。Bridgeは一時ディレクトリで起動し、`--setting-sources project` を使うため、通常起動のユーザー設定とは条件が異なります。
+- **対話CLIでは返答を受け取れるがBridgeでは失敗する**: 同じ実行ファイル・OSユーザー・`CLAUDE_CONFIG_DIR` を使っているか確認してください。Bridgeは一時ディレクトリで起動し、`--setting-sources project` を使うため、通常起動のユーザー設定とは条件が異なります。
 - **`--json-schema` がDraft 2020-12宣言を拒否する**: 認証とは別の互換性問題です。Bridge 0.7.1以降の修正を含むソースで `uv tool install . --reinstall` を実行し、`tkn-genai-bridge --version` で確認してください。利用側アプリから呼ぶ場合は、その環境のBridgeも更新します。
 
 ## Ollama
