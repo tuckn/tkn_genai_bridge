@@ -312,12 +312,17 @@ class CliBackend:
                 if profile.reasoning_effort:
                     command += ["-c", f"model_reasoning_effort={json.dumps(profile.reasoning_effort)}"]
             elif profile.provider == "claude-code":
+                # Claude's CLI validator rejects the Draft 2020-12 declaration.
+                # Omit only the root dialect marker from the transport copy;
+                # Runtime still validates output against the untouched original.
+                cli_schema = dict(request.output_schema)
+                cli_schema.pop("$schema", None)
                 command += [
                     "-p",
                     "--output-format",
                     "json",
                     "--json-schema",
-                    json.dumps(request.output_schema, ensure_ascii=False, separators=(",", ":")),
+                    json.dumps(cli_schema, ensure_ascii=False, separators=(",", ":")),
                     "--tools",
                     "",
                     "--permission-mode",

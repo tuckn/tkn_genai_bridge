@@ -128,3 +128,46 @@ def test_process_stdin_handles_metacharacters_without_shell(tmp_path):
         5,
     )
     assert output == prompt
+
+
+@pytest.mark.parametrize("valid", [True, False])
+def test_claude_example_schema_omits_only_root_dialect_and_keeps_validation(monkeypatch, valid):
+    from copy import deepcopy
+
+    from tkn_genai_bridge import GenerationRequest, OutputValidationError
+    from tkn_genai_bridge.validation import fingerprints
+
+    example = Path(__file__).resolve().parents[1] / "examples/output.schema.json"
+    schema = json.loads(example.read_text(encoding="utf-8"))
+    # A user property named "$schema" is data, not a dialect declaration.
+    schema["properties"]["$schema"] = {"type": "string", "const": "literal-value"}
+    original = deepcopy(schema)
+    request = GenerationRequest(prompt="Synthetic summary.", output_schema=schema)
+    expected_hash = fingerprints(request)[1]
+    data = {"summary": "valid" if valid else "", "$schema": "literal-value"}
+
+    def run(command, *args, **kwargs):
+        forwarded = json.loads(command[command.index("--json-schema") + 1])
+        assert "$schema" not in forwarded
+        assert forwarded == {k: v for k, v in original.items() if k != "$schema"}
+        assert forwarded["properties"]["$schema"] == original["properties"]["$schema"]
+        assert "--tools" in command and "--strict-mcp-config" in command
+        return json.dumps(
+            {"is_error": False, "structured_output": data, "usage": {"input_tokens": 3, "output_tokens": 2}}
+        )
+
+    monkeypatch.setattr(cli, "run_process", run)
+    profile = Profile(provider="claude-code", cli=CliSettings(executable=sys.executable))
+    if valid:
+        result = Runtime(profile).generate(request)
+        assert result.data == data
+        record = result.record
+    else:
+        with pytest.raises(OutputValidationError) as exc:
+            Runtime(profile).generate(request)
+        assert exc.value.code == "schema_mismatch"
+        record = exc.value.record
+    assert record.schema_sha256 == expected_hash
+    assert record.usage.input_tokens == 3
+    assert request.output_schema == original
+    assert schema == original

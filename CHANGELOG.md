@@ -2,6 +2,11 @@
 
 ## 未リリース
 
+## 0.7.1
+
+- Claude CodeのJSON Schema互換性を修正。CLIへ渡すコピーからルートの `$schema` 宣言だけを除き、元のDraft 2020-12による出力検証・生成条件の記録は維持。
+- 同梱サンプルのスキーマを使う回帰テストを追加。認証情報・プロファイル設定は変更しない。
+
 ## 0.7.0
 
 - Google Antigravity CLI（`agy`）の `antigravity` provider と `antigravity-default` 設定例を追加。

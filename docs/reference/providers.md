@@ -54,6 +54,11 @@ CLIはシェルを経由せず、引数配列とUTF-8標準入力で起動しま
 利用側の作業ディレクトリを渡さず、実行専用の一時ディレクトリを使います。
 プロンプトをプロセスの引数へ含めません。
 Claude Code のスキーマは製品仕様に合わせて引数へ渡すため、OSのコマンド長制限を受けます。
+Claude Code 2.1.282でルートのDraft 2020-12宣言が拒否されることを確認したため、
+CLIへ渡すコピーからルートの `$schema` だけを省略します。
+元のスキーマ・ハッシュ・Bridge側のDraft 2020-12検証は維持します。
+他のDraft向けにキーワードを変換するものではなく、CLIが対応しない制約は引き続き失敗する場合があります。
+参考: [Claude Codeの互換性報告](https://github.com/anthropics/claude-code/issues/80402)。
 
 | 接続先 | 主な制御 | 出力・情報 |
 | --- | --- | --- |
@@ -93,10 +98,71 @@ Linuxでは実行専用のプロセスグループを終了させますが、実
 導入済みCLIがこれらのオプションを持たない場合は、対応するCLIへ更新してください。
 保護オプションを外して自動的に再実行することはありません。
 Codex・Claude Code・Antigravityのローカルヘルプを確認しています。
-Antigravityの通信・認証を伴う生成は未検証で、プロトコルは公式仕様と模擬実行で検証しています。
-Copilotは公式仕様と模擬実行で確認し、この環境の実行ファイルは動作確認できていません。
+2026-09-25に、同梱の匿名サンプルでWindowsから実接続を確認しました。
+Codex（既定モデルとモデル指定）・Claude Code・GitHub Copilot・Antigravity・Ollama・Azure OpenAIは生成とJSON Schema検証に成功しています。
+Claude CodeはBridge 0.7.1のスキーマ互換修正と再ログイン後に、同じ匿名サンプルで実生成を確認しました。
+これは確認時点の環境・認証状態での結果です。通常のpytestは模擬応答を使い、外部サービスへの生成要求やクレジット消費を行いません。
 
 公式資料: [Codex非対話実行](https://learn.chatgpt.com/docs/developer-commands#codex-exec)、[Claude Code CLI](https://code.claude.com/docs/en/cli-reference)、[GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference)、[Antigravity headless mode](https://antigravity.google/docs/cli/headless/)。
+
+### Claude Codeのログインと動作確認
+
+Bridgeは `claude -p` による非対話実行でClaude Codeを呼び出します。
+claude.aiアカウントで使う場合は、Claude Code CLIをインストールし、Bridgeと同じWindowsユーザーでログインしてください。
+共有設定には `provider: claude-code` のプロファイルが必要です。同梱設定例の名前は `claude-default` です。
+以前に作成した設定にこのプロファイルがなければ、[設定例](configuration.md#6種類のプロファイルを定義する例) を参考に、既存の `profiles` へ追加します。
+
+#### 初回ログインと再ログイン
+
+自分で操作できるPowerShellで実行します。
+
+```powershell
+claude auth login --claudeai
+claude auth status
+```
+
+開いたブラウザーで利用するclaude.aiアカウントにログインします。
+認証コードが表示された場合は、そのログインコマンドが待機しているPowerShellに貼り付け、ログイン完了を確認してください。
+認証コードやトークンをチャット、BridgeのYAML、リポジトリへ貼り付けないでください。
+
+認証情報はClaude Codeが管理します。Windowsでは通常 `%USERPROFILE%/.claude/.credentials.json` を使い、
+`CLAUDE_CONFIG_DIR` を設定している場合はそのディレクトリを使います。
+Bridgeがこのファイルを編集したり、独自のClaude認証情報を保存したりすることはありません。
+保存済みの認証で正常に生成できていれば、生成のたびにログインし直す必要はありません。
+認証方式や保存先の詳細は [Claude Code公式の認証ガイド](https://code.claude.com/docs/en/authentication) を参照してください。
+
+#### Bridgeから動作確認する
+
+リポジトリの匿名サンプルを使用します。以下はclaude-defaultが設定済みの場合の例です。
+
+```powershell
+cd "C:\path\to\tkn_genai_bridge"
+tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
+```
+
+dry-runは設定・入力・実行ファイルの存在を確認するだけで、ログインの有効性や生成は確認しません。
+認証を含めて確かめる場合は、次の通常実行を1回行います。**サービスの利用枠・クレジットを消費する場合があります。**
+
+```powershell
+tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json
+```
+
+終了コードが `0`、結果の `record.status` が `succeeded` で、`data.summary` に要約があれば、
+認証・生成・元のJSON Schemaでの検証まで成功しています。
+`claude auth status` の `loggedIn: true` や対話画面の表示だけでは、この確認の代わりになりません。
+
+#### 生成に失敗する場合
+
+Bridgeの `process_exit` はCLIが異常終了したことを示すため、これだけで認証失敗とは断定できません。
+必要に応じて、同じPowerShellからClaude単体の短い非対話生成を試します。この確認も利用枠を消費する場合があります。
+
+```powershell
+claude -p "Reply only OK." --tools "" --no-session-persistence
+```
+
+- **Claude側でHTTP 401や `OAuth access token is invalid` が表示される**: 保存済み認証が拒否されています。上記のログインコマンドで認証を更新し、Bridgeのサンプルを再実行してください。
+- **対話CLIでは返答を受け取れるがBridgeでは失敗する**: 同じ実行ファイル・Windowsユーザー・`CLAUDE_CONFIG_DIR` を使っているか確認してください。Bridgeは一時ディレクトリで起動し、`--setting-sources project` を使うため、通常起動のユーザー設定とは条件が異なります。
+- **`--json-schema` がDraft 2020-12宣言を拒否する**: 認証とは別の互換性問題です。Bridge 0.7.1以降の修正を含むソースで `uv tool install . --reinstall` を実行し、`tkn-genai-bridge --version` で確認してください。利用側アプリから呼ぶ場合は、その環境のBridgeも更新します。
 
 ## Ollama
 

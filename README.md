@@ -98,6 +98,24 @@ Codex CLI のログイン済み認証を使い、モデルは CLI の既定値�
 Google Antigravity CLI を使う場合は、事前に `agy` でログインし、`--profile antigravity-default` を指定します。
 `model: null` は agy の既定モデルを使い、固定する場合は `agy models` でモデル名を確認します。
 
+### Claude Codeでログインする
+
+Claude Codeを使う場合は、Bridgeを実行するのと同じWindowsユーザーのPowerShellで認証します。
+claude.aiアカウントを使う場合の初回ログイン、または認証が無効になった場合の再ログインは次のコマンドです。
+
+```powershell
+claude auth login --claudeai
+claude auth status
+```
+
+ブラウザーでログインし、認証コードが表示された場合は、コマンドを実行したPowerShellへ貼り付けてください。
+認証コードやトークンをBridgeの設定ファイルに書く必要はありません。
+`claude auth status` の `loggedIn: true` やCLI画面の表示だけでは、実際の生成が成功する保証にはなりません。
+次節の実行例では `--profile claude-default` を指定し、サンプルで確認してください。
+正常に生成できていれば、毎回ログインする必要はありません。
+
+詳しい確認手順と失敗時の切り分けは [Claude Codeのログインと動作確認](docs/reference/providers.md#claude-codeのログインと動作確認) を参照してください。
+
 ## 最初の実行と結果確認
 
 リポジトリ直下の匿名サンプルで、設定・入力・実行ファイルを確認します。
@@ -240,8 +258,9 @@ dry-run専用の `--estimate-input-tokens` / `--estimate-output-tokens` は0以�
 | 接続先         | 方式                                 | 事前に用意するもの                              |
 | -------------- | ------------------------------------ | ----------------------------------------------- |
 | Codex          | `codex exec`                       | 対応オプションを持つスタンドアロンCLIとログイン |
-| Claude Code    | `claude -p`                        | CLIと認証                                       |
+| Claude Code    | `claude -p`                        | CLIと[ログイン済み認証](#claude-codeでログインする) |
 | GitHub Copilot | 標準入力＋silent出力                 | CLIと認証                                       |
+| Google Antigravity | `agy` のNDJSON入出力             | CLIとログイン済み認証                           |
 | Ollama         | LiteLLM SDK → ローカル`/api/chat` | サーバーと取得済みモデル                        |
 | Azure OpenAI   | LiteLLM SDK → v1 Chat Completions   | endpoint、デプロイ名、APIキーまたはEntra認証    |
 
@@ -249,7 +268,7 @@ JSON Schema は Draft 2020-12 のオブジェクトを受け付け、生成後�
 接続先が対応するスキーマの範囲は異なります。
 このパッケージは制約を自動で削除しません。
 LiteLLM への切り替えで、設定の `provider` や `model` に接頭辞を追加する必要はありません。
-本パッケージが公開する接続先は上記の5種類です。LiteLLM の全プロバイダーを直接指定する設定は提供しません。
+本パッケージが公開する接続先は上記の6種類です。LiteLLM の全プロバイダーを直接指定する設定は提供しません。
 構造が正しくても内容の正しさや出典との一致は利用側で検証してください。
 
 `local_only: true` は Ollama だけに許可し、ループバック接続、プロキシ無効化、リダイレクト拒否、モデル情報の確認を行います。
@@ -261,9 +280,10 @@ CLI接続は専用の一時フォルダで実行し、終了時にパッケー�
 外部CLI自身の認証情報、ログ、キャッシュは各製品が管理します。
 エージェント製品の完全な隔離環境を提供するものではありません。
 
-自動テストでは通信・外部CLIを置き換え、5種類の要求形式とエラー処理を確認します。
+自動テストでは通信・外部CLIを置き換え、6種類の要求形式とエラー処理を確認します。
 API接続は実際の LiteLLM SDK と匿名の応答を使い、外部通信を拒否したプロセスでも確認します。
-実サービスでの生成、課金、認証、品質と Linux の実動作は未検証です。
+2026-09-25にWindowsで全6種類の認証・サンプル生成・JSON検証を確認しました。詳細は [接続仕様](docs/reference/providers.md#cli接続) を参照してください。
+実請求額との照合、用途ごとの出力品質と Linux の実動作は未検証です。
 外部CLIのオプション変更による影響は [接続仕様](docs/reference/providers.md) を参照してください。
 
 LiteLLM は API 生成時に遅延読み込みします。初回の読み込み時間と追加の依存パッケージが必要です。
