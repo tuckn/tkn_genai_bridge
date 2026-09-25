@@ -67,7 +67,7 @@ Python 3.11 以上と [uv](https://docs.astral.sh/uv/) が必要です。
 設定管理や単独実行に使う `tkn-genai-bridge` をインストールします。
 コマンドはターミナルで実行します。パスの例は Windows 形式なので、利用環境に合わせて実際のフォルダのパスに置き換えてください。
 
-```Shell
+```shell
 cd "C:\path\to\tkn_genai_bridge"
 uv tool install .
 tkn-genai-bridge --help
@@ -81,7 +81,7 @@ Azure OpenAI の API キー認証と Microsoft Entra ID 認証（ブラウザー
 
 ### 設定を行う
 
-```Shell
+```shell
 tkn-genai-bridge config init --dry-run
 tkn-genai-bridge config init
 tkn-genai-bridge config show --no-project-config
@@ -103,7 +103,7 @@ Google Antigravity CLI を使う場合は、事前に `agy` でログインし�
 Claude Codeを使う場合は、Bridgeを実行するのと同じOSユーザーのターミナルで認証します。
 claude.aiアカウントを使う場合の初回ログイン、または認証が無効になった場合の再ログインは次のコマンドです。
 
-```Shell
+```shell
 claude auth login --claudeai
 claude auth status
 ```
@@ -120,7 +120,7 @@ claude auth status
 
 リポジトリ直下の匿名サンプルで、設定・入力・実行ファイルを確認します。
 
-```Shell
+```shell
 tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
 ```
 
@@ -132,7 +132,7 @@ dry-run は通信、認証、生成AIの呼び出し、ファイル作成を行�
 **次の通常実行はプロンプトとスキーマを接続先へ送り、API料金やサービスの利用枠を消費する場合があります。**
 `--dry-run` を外して実行します。
 
-```Shell
+```shell
 tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json
 ```
 
@@ -153,7 +153,7 @@ HTTPエラーでは `error.http_status` と `error.retry_after_seconds` から�
 
 ローカル開発では、利用側のプロジェクトで次のように追加します。
 
-```Shell
+```shell
 cd "C:\path\to\your_cli"
 uv add "C:\path\to\tkn_genai_bridge"
 uv run python -c "import tkn_genai_bridge; print(tkn_genai_bridge.__version__)"
@@ -295,7 +295,7 @@ SDK の価格表・トークナイザーは同梱データを使い、SDKログ�
 
 補助CLIを更新する場合は、更新済みリポジトリで再インストールします。
 
-```Shell
+```shell
 cd "C:\path\to\tkn_genai_bridge"
 uv tool install . --reinstall
 tkn-genai-bridge --version
@@ -307,7 +307,7 @@ tkn-genai-bridge --version
 
 開発環境の作成と確認は次の手順です。
 
-```Shell
+```shell
 cd "C:\path\to\tkn_genai_bridge"
 uv sync --locked
 uv run pytest

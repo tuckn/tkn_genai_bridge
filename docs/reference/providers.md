@@ -116,7 +116,7 @@ claude.aiアカウントで使う場合は、Claude Code CLIをインストー�
 
 自分で操作できるターミナルで実行します。
 
-```Shell
+```shell
 claude auth login --claudeai
 claude auth status
 ```
@@ -135,7 +135,7 @@ Bridgeがこのファイルを編集したり、独自のClaude認証情報を�
 
 リポジトリの匿名サンプルを使用します。以下はclaude-defaultが設定済みの場合の例です。パスは Windows 形式なので、利用環境に合わせてリポジトリを置いたフォルダのパスに置き換えてください。
 
-```Shell
+```shell
 cd "C:\path\to\tkn_genai_bridge"
 tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
 ```
@@ -143,7 +143,7 @@ tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-
 dry-runは設定・入力・実行ファイルの存在を確認するだけで、ログインの有効性や生成は確認しません。
 認証を含めて確かめる場合は、次の通常実行を1回行います。**サービスの利用枠・クレジットを消費する場合があります。**
 
-```Shell
+```shell
 tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json
 ```
 
@@ -156,7 +156,7 @@ tkn-genai-bridge generate --no-project-config --profile claude-default --prompt-
 Bridgeの `process_exit` はCLIが異常終了したことを示すため、これだけで認証失敗とは断定できません。
 必要に応じて、同じターミナルからClaude単体の短い非対話生成を試します。この確認も利用枠を消費する場合があります。
 
-```Shell
+```shell
 claude -p "Reply only OK." --tools "" --no-session-persistence
 ```
 
