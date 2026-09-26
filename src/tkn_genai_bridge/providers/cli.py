@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ..errors import GenAIError, ProviderError
+from ..images import IMAGE_SUFFIXES, validate_image_provider
 from ..models import CLI_EXECUTABLES, GenerationRequest, Profile, ResponseMetadata, TokenCounts, Usage
 from ..usage import summarize_usage
 from ..validation import parse_object
@@ -284,6 +285,7 @@ def _antigravity_result(
 
 class CliBackend:
     def generate(self, profile: Profile, request: GenerationRequest) -> ProviderResponse:
+        validate_image_provider(profile.provider, request.images)
         executable = resolve_executable(profile)
         with tempfile.TemporaryDirectory(prefix="tkn-genai-bridge-") as folder:
             cwd = Path(folder)
@@ -311,6 +313,10 @@ class CliBackend:
                 ]
                 if profile.reasoning_effort:
                     command += ["-c", f"model_reasoning_effort={json.dumps(profile.reasoning_effort)}"]
+                for index, image in enumerate(request.images, start=1):
+                    image_path = cwd / f"image-{index:04d}{IMAGE_SUFFIXES[image.media_type]}"
+                    image_path.write_bytes(image.data)
+                    command += ["--image", str(image_path)]
             elif profile.provider == "claude-code":
                 # Claude's CLI validator rejects the Draft 2020-12 declaration.
                 # Omit only the root dialect marker from the transport copy;

@@ -3,7 +3,8 @@
 ## 生成とオフライン計画
 
 `Runtime(profile)` は設定を検証しますが、コンストラクターでは通信・認証・書き込みを行いません。
-`GenerationRequest(prompt=..., output_schema=..., schema_name=...)` を渡して使います。
+`GenerationRequest(prompt=..., output_schema=..., schema_name=..., images=[...])` を渡して使います。
+`images` は省略可能で、既存のテキスト入力の呼び出し方を維持します。
 
 | 操作 | 動作 |
 | --- | --- |
@@ -22,7 +23,7 @@ LiteLLM SDKの読み込みも行いません。
 `input_tokens` は0以上の整数で、入力の指示文・スキーマ・必要な余裕分を含む最終推定値です。
 `input_tokens_method` は記録用の識別名で、省略時は `caller-supplied`。入力値と併用してください。
 `estimate_tokens()` も同じ引数に対応します。値・方法名・入力元・Bridgeの追加余裕分は `TokenEstimate` に残ります。
-独自tokenizerの呼び出しは利用側が担当します。未指定時は従来のUTF-8バイト数による概算です。
+独自tokenizerの呼び出しは利用側が担当します。テキストのみで未指定時は従来のUTF-8バイト数による概算です。
 詳しくは [入力推定値の契約](costs.md#生成前の確認) を参照してください。
 `generate()` は同期処理です。
 同じRuntimeの並列呼び出しには対応しません。
@@ -52,6 +53,38 @@ Markdown の囲み、説明文、重複キー、NaN、Infinity はエラーで�
 `format` はインストール済み jsonschema の FormatChecker が提供する検証を適用します。
 追加ライブラリを要する format の保証が必要なら、利用側でも検証してください。
 
+## 画像入力
+
+`ImageInput.from_file(path)` はローカルファイルを読み込み、`ImageInput(data=bytes, media_type=...)` は
+メモリ上の画像を受け取ります。PNG (`image/png`)・JPEG (`image/jpeg`)・WebP (`image/webp`) に対応し、1枚20 MiB以下です。
+拡張子ではなくファイル先頭のシグネチャとMIME形式を照合します。画像全体のデコード検証は行わないため、破損やモデル側の制限は生成時にエラーになる場合があります。
+URL・data URL文字列の入力、画像生成、変換、縮小、OCRはこのAPIの対象外です。
+
+`images` は `list[ImageInput]`。プロンプトの後に指定順の画像を渡し、同じ画像を複数回指定しても削除しません。
+全体図と詳細図などの役割や対応は、利用側がその順序に合わせてプロンプトに書いてください。
+読み込み後は元ファイルを参照せず、固定したバイト列を `plan()` と `generate()` で共用します。
+ファイル更新を反映する場合は `ImageInput` を再作成してください。
+
+Codex・Ollama・Azure OpenAIのアダプターが対応します。モデルの画像対応は利用側で確認してください。
+その他のBridgeアダプターは、認証・通信・実行ファイル確認・一時保存より前に `RequestError(code="unsupported_images")` で停止します。
+ファイル読み込み失敗は `image_io`、ファイル形式・サイズ違反は `invalid_image` です。
+直接 `ImageInput(...)` を構築した場合の型・形式違反はPydanticの `ValidationError` です。
+
+`plan()` は画像を保存・送信しません。Codex実行時だけ専用の一時フォルダへ連番で画像を保存し、成功・失敗後に削除します。
+API接続は画像をbase64化して要求内に含め、外部URLから取得しません。`local_only` の制約は画像にも適用されます。
+プラン・成功記録・生成失敗記録の `images` は、指定順の `ImageMetadata` (`sha256`, `media_type`, `size_bytes`) です。
+元パス・ファイル名・画像バイト列・base64本文はこれらの記録に含めません。入力オブジェクト自体の保存・ログ出力は利用側の責任です。
+
+`input_sha256` はプロンプトと、順序・重複を含む画像メタデータの正規化JSONのSHA-256です。
+画像の変更・追加・削除・順序変更も再利用判定へ反映するため、`schema_sha256` と `generation_settings_sha256` に加えて比較してください。
+`prompt_sha256` は引き続きテキストのみ、`generation_settings_sha256` は生成条件のみを表します。
+0.7以前の記録を読み込む場合、`images` は空リスト、`input_sha256` は `null` になります。
+旧記録の `null` は入力一致を確認できたことを意味しません。
+
+画像ありで入力推定値を省略した場合、`TokenEstimate.input_tokens` は `null`、方法名は `image-input-unestimated-v1` です。
+単価が設定済みでも事前参考額は `usage_missing` で不明となります。`input_tokens` を指定する場合はテキストと画像を含む総量を渡してください。
+実行後のtoken・参考額は従来どおり、接続先が報告した利用量から求めます。
+
 ## 戻り値と実行記録
 
 `GenerationResult.data` が検証済みのオブジェクトです。
@@ -70,6 +103,8 @@ Markdown の囲み、説明文、重複キー、NaN、Infinity はエラーで�
 | `error_code` | 失敗の分類。成功時は `null` |
 | `prompt_sha256` | 入力プロンプトのUTF-8 SHA-256 |
 | `schema_sha256` | キー整列したJSON表現のSHA-256 |
+| `input_sha256` | プロンプトと指定順の画像メタデータのSHA-256。旧記録は `null` |
+| `images` | 指定順の画像ハッシュ・MIME形式・バイト数。画像なし・旧記録は空リスト |
 | `bridge_version` | 生成に使用したBridgeのバージョン |
 | `profile_name` | 選択した設定プロファイル名。直接構築して名前未指定なら `null` |
 | `generation_settings_sha256` | 認証情報を除いた生成条件のSHA-256 |

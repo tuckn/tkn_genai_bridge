@@ -143,11 +143,12 @@ def test_sdk_schema_mutation_cannot_weaken_application_validation(request_object
     assert request_object.output_schema["properties"]["summary"]["minLength"] == 1
 
 
-def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
+@pytest.mark.parametrize("with_image", [False, True])
+def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path, with_image):
     # A socket-level guard also catches SDK metadata/tokenizer/background traffic
     # that bypasses our injected transport. An empty home/cache prevents warm-cache success.
     program = textwrap.dedent("""
-        import json, os, socket, sys, time, threading
+        import base64, json, os, socket, sys, time, threading
         attempts = []
         state = threading.local()
         original_connect, original_connect_ex = socket.socket.connect, socket.socket.connect_ex
@@ -168,6 +169,7 @@ def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
         socket.socket.connect = lambda *a, **kw: guarded_connect(original_connect, *a, **kw)
         socket.socket.connect_ex = lambda *a, **kw: guarded_connect(original_connect_ex, *a, **kw)
         from tkn_genai_bridge import AzureSettings, GenerationRequest, OutputValidationError, Runtime, Profile
+        from tkn_genai_bridge import ImageInput
         from tkn_genai_bridge.providers.litellm import LiteLLMBackend
         import httpx
         calls = []
@@ -184,6 +186,11 @@ def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
         runtime = Runtime(Profile(provider="ollama", model="offline-fixture", local_only=True),
                           backend=LiteLLMBackend(transport=httpx.MockTransport(handle)))
         request = GenerationRequest(prompt="synthetic", output_schema={"type": "object"})
+        if sys.argv[1] == "image":
+            image = ImageInput(data=base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII="
+            ), media_type="image/png")
+            request = request.model_copy(update={"images": [image]})
         azure_backend = LiteLLMBackend(transport=httpx.MockTransport(handle))
         azure_runtime = Runtime(Profile(provider="azure-openai", model="deployment",
             azure=AzureSettings(endpoint="https://example.openai.azure.com/openai/v1")),
@@ -219,7 +226,7 @@ def test_fresh_process_plan_is_lazy_and_sdk_generation_is_offline(tmp_path):
         PYTHONDONTWRITEBYTECODE="1",
     )
     result = subprocess.run(
-        [sys.executable, "-c", program],
+        [sys.executable, "-c", program, "image" if with_image else "text"],
         cwd=tmp_path,
         env=env,
         capture_output=True,

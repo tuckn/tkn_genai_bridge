@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 
 from ..errors import GenAIError, ProviderError
+from ..images import message_content, validate_image_provider
 from ..models import GenerationRequest, OllamaSettings, Profile, ResponseMetadata
 from ..validation import parse_object
 from .base import ProviderResponse
@@ -114,6 +115,7 @@ class LiteLLMBackend:
     def generate(self, profile: Profile, request: GenerationRequest) -> ProviderResponse:
         if self._closed:
             raise ProviderError("backend is closed", code="runtime_closed")
+        validate_image_provider(profile.provider, request.images)
         local = profile.provider == "ollama"
         timeout = httpx.Timeout(profile.timeout_seconds, connect=min(10, profile.timeout_seconds))
         guard = _ResponseGuard(local=local)
@@ -148,7 +150,12 @@ class LiteLLMBackend:
             parameters: dict[str, Any] = {
                 "model": profile.model,
                 "messages": [
-                    {"role": "user", "content": schema_prompt(request) if local else request.prompt}
+                    {
+                        "role": "user",
+                        "content": message_content(
+                            schema_prompt(request) if local else request.prompt, request.images
+                        ),
+                    }
                 ],
                 "response_format": {
                     "type": "json_schema",

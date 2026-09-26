@@ -4,6 +4,7 @@ from ._version import __version__
 from .config import load_config, load_profile
 from .costs import estimate_cost, estimate_tokens
 from .errors import ConfigError, GenAIError, OutputValidationError, ProviderError, RequestError
+from .images import ImageInput, ImageMetadata
 from .models import (
     AzureSettings,
     CliSettings,
@@ -32,6 +33,8 @@ __all__ = [
     "GenerationRecord",
     "GenerationRequest",
     "GenerationResult",
+    "ImageInput",
+    "ImageMetadata",
     "OllamaSettings",
     "OutputValidationError",
     "Profile",

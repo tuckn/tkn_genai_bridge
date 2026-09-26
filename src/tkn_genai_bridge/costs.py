@@ -46,6 +46,18 @@ def estimate_tokens(
             if output_tokens is not None
             else ("profile_limit" if profile.max_output_tokens is not None else "unknown"),
         )
+    if request.images:
+        # Image tokens depend on the model, dimensions and provider preprocessing.
+        # Text bytes or base64 length would silently understate or overstate the total.
+        return TokenEstimate(
+            input_tokens=None,
+            output_tokens=output_tokens if output_tokens is not None else profile.max_output_tokens,
+            method="image-input-unestimated-v1",
+            margin_tokens=0,
+            output_tokens_source="caller"
+            if output_tokens is not None
+            else ("profile_limit" if profile.max_output_tokens is not None else "unknown"),
+        )
     envelope = {
         "messages": [
             {

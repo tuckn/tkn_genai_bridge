@@ -2,6 +2,16 @@
 
 ## 未リリース
 
+## 0.8.0
+
+- `ImageInput.from_file()` / `ImageInput(data=..., media_type=...)` と `GenerationRequest.images` を追加。複数のPNG・JPEG・WebPを指定順に添付可能。
+- Codexの画像添付と、LiteLLM経由のOllama・Azure OpenAI画像入力に対応。その他のBridgeアダプターは実行前に `unsupported_images` で停止。
+- 補助CLIに複数回指定できる `--image` を追加。dry-runは画像を検証するだけで、通信・認証・一時保存を行わない。
+- プラン・成功／失敗記録に画像のハッシュ・形式・サイズと `input_sha256` を追加。元パスや画像本体は記録しない。
+- 画像ありの事前入力token概算は既定で `null`。利用側がテキストと画像を含む総推定値を指定可能。実行後は従来どおり接続先の報告値を使用。
+- テキスト入力と共有設定スキーマ1.1.0を維持。旧記録の新フィールドは空リスト／`null`。新フィールドを使うアプリと記録の読み手はBridge 0.8.0以降へ更新し、`input_tokens` の `null` を扱ってください。
+- 画像付きの生成結果を再利用する際は `input_sha256` も比較してください。補助CLIと利用側アプリのBridge依存を更新・再インストールする必要があります。
+
 ## 0.7.1
 
 - Claude CodeのJSON Schema互換性を修正。CLIへ渡すコピーからルートの `$schema` 宣言だけを除き、元のDraft 2020-12による出力検証・生成条件の記録は維持。

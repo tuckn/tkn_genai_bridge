@@ -12,6 +12,7 @@ from types import TracebackType
 from ._version import __version__
 from .costs import estimate_tokens, profile_cost
 from .errors import GenAIError, ProviderError
+from .images import image_metadata, input_fingerprint, validate_image_provider
 from .models import (
     CLI_EXECUTABLES,
     GenerationPlan,
@@ -79,7 +80,10 @@ class Runtime:
         input_tokens_method: str | None = None,
     ) -> GenerationPlan:
         self._ensure_open()
+        request = GenerationRequest.model_validate(deepcopy(request.model_dump()))
         prepare_validator(request)
+        validate_image_provider(self.profile.provider, request.images)
+        images = image_metadata(request.images)
         if check_executable and self.profile.provider in CLI_EXECUTABLES:
             resolve_executable(self.profile)
         prompt_hash, schema_hash = fingerprints(request)
@@ -114,6 +118,8 @@ class Runtime:
             basis="planned",
         )
         return GenerationPlan(
+            images=images,
+            input_sha256=input_fingerprint(request.prompt, images),
             token_estimate=tokens,
             cost_estimate=cost,
             bridge_version=__version__,
@@ -132,6 +138,8 @@ class Runtime:
         self._ensure_open()
         request = GenerationRequest.model_validate(deepcopy(request.model_dump()))
         validator = prepare_validator(request)
+        validate_image_provider(self.profile.provider, request.images)
+        images = image_metadata(request.images)
         prompt_hash, schema_hash = fingerprints(request)
         settings_hash = generation_settings_hash(self.profile, request)
         started_at = datetime.now(UTC).isoformat()
@@ -158,6 +166,8 @@ class Runtime:
         metadata = response if response is not None else error.metadata if error else None
         usage = metadata.usage if metadata else Usage()
         record = GenerationRecord(
+            images=images,
+            input_sha256=input_fingerprint(request.prompt, images),
             cost_estimate=profile_cost(
                 self.profile,
                 usage,

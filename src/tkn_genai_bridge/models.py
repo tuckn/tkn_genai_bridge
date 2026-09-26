@@ -8,6 +8,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
+from .images import ImageInput, ImageMetadata
+
 Provider = Literal["codex", "claude-code", "github-copilot", "antigravity", "ollama", "azure-openai"]
 CLI_EXECUTABLES = {
     "codex": "codex",
@@ -221,6 +223,7 @@ class GenerationRequest(StrictModel):
     prompt: str = Field(repr=False, min_length=1)
     output_schema: dict[str, Any] = Field(repr=False)
     schema_name: str = Field(default="generated_output", pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    images: list[ImageInput] = Field(default_factory=list, repr=False)
 
 
 class TokenCounts(StrictModel):
@@ -276,7 +279,7 @@ class Usage(TokenCounts):
 
 
 class TokenEstimate(StrictModel):
-    input_tokens: int = Field(ge=0)
+    input_tokens: int | None = Field(ge=0)
     output_tokens: int | None = Field(default=None, ge=0)
     method: str = Field(default="utf8-bytes-plus-margin-v1", pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/+-]{0,119}$")
     input_tokens_source: Literal["builtin", "caller"] = "builtin"
@@ -316,6 +319,8 @@ class ResponseMetadata(StrictModel):
 
 
 class GenerationRecord(ResponseMetadata):
+    images: list[ImageMetadata] = Field(default_factory=list)
+    input_sha256: str | None = None
     cost_estimate: CostEstimate | None = None
     provider: Provider
     requested_model: str | None
@@ -336,6 +341,8 @@ class GenerationResult(StrictModel):
 
 
 class GenerationPlan(StrictModel):
+    images: list[ImageMetadata] = Field(default_factory=list)
+    input_sha256: str | None = None
     token_estimate: TokenEstimate | None = None
     cost_estimate: CostEstimate | None = None
     bridge_version: str | None = None

@@ -48,6 +48,12 @@ CLIでモデルを指定しない場合、事前見積もりの金額は不明�
 
 ## 生成前の確認
 
+画像付きリクエストでは、モデルによる画像処理をUTF-8バイト数へ換算できないため、既定の
+`token_estimate.input_tokens` は `null`、方法は `image-input-unestimated-v1` です。
+単価設定済みでも事前参考額は `usage_missing` となります。
+`input_tokens` / `--estimate-input-tokens` を指定する場合は、画像・テキスト・余裕分を含む総推定値を渡してください。
+実行後の参考額は画像なしの場合と同じく、接続先が報告した利用量を使います。
+
 ```python
 from tkn_genai_bridge import GenerationRequest, Runtime, load_profile
 

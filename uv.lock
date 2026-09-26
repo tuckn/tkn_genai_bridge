@@ -2301,7 +2301,7 @@ wheels = [
 
 [[package]]
 name = "tkn-genai-bridge"
-version = "0.7.1"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "azure-identity" },

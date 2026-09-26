@@ -48,6 +48,20 @@ Ollamaの事前確認も同じ契約です。秒数・HTTP日時を待機秒数�
 
 公式資料: [LiteLLM SDK](https://docs.litellm.ai/docs/)、[Ollama](https://docs.litellm.ai/docs/providers/ollama)、[Azure](https://docs.litellm.ai/docs/providers/azure)。
 
+## 画像の転送
+
+Bridge 0.8.0からCodex・Ollama・Azure OpenAIへ複数のPNG・JPEG・WebP画像を添付できます。
+Codexでは専用一時フォルダの画像を `--image` で渡し、API接続ではテキストとbase64の `image_url` をLiteLLMへ渡します。
+実SDK経由の模擬HTTPテストで、Ollamaの `messages[].images` とAzureの画像contentに指定順の全バイト列が届くことを確認します。
+Claude Code・GitHub Copilot・AntigravityのBridgeアダプターでは画像を受け付けません。
+この対応表はBridgeの実装範囲であり、各製品全体の画像機能の有無を示すものではありません。
+モデルの画像対応、解像度・枚数・サイズ上限と構造化出力の組み合わせは、利用する接続先でも確認してください。
+
+転送形式の参考: [Codex CLI](https://developers.openai.com/codex/cli/)、
+[LiteLLM Vision](https://docs.litellm.ai/docs/completion/vision)、
+[Azure画像入力](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/gpt-with-vision)。
+2026年9月26日にローカルCodex CLIの `exec --help` と実SDKの模擬通信で検証。実画像をサービスへ送る試験は実施していません。
+
 ## CLI接続
 
 CLIはシェルを経由せず、引数配列とUTF-8標準入力で起動します。

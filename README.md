@@ -1,7 +1,8 @@
-# Tuckn GenAI Bridge — Python CLI 共通の生成AI呼び出し
+# tkn-genai-bridge: Tkn GenAI Bridge — Python CLI 共通の生成AI呼び出し
 
 Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
 プロンプトと JSON Schema を渡すと、検証済みの JSON オブジェクトと、モデル・利用量・実行時間の情報を返します。
+Codex・Ollama・Azure OpenAIでは、プロンプトに複数のローカル画像を添付できます。
 生成前のtoken概算と、設定した参考単価によるコスト概算も通信なしで計算できます。
 
 利用側の CLI は、プロンプトと期待する出力形式（JSON Schema）を用意し、接続プロファイルを指定して Bridge を呼び出します。
@@ -11,7 +12,7 @@ Python で作成した複数の CLI から、同じ API と接続設定で生成
 ```mermaid
 sequenceDiagram
     participant App as 利用側の Python CLI
-    participant Bridge as Tuckn GenAI Bridge
+    participant Bridge as Tkn GenAI Bridge
     participant AI as 選択した生成AI接続先
 
     App->>Bridge: プロンプト・JSON Schema を渡して生成を依頼
@@ -28,7 +29,7 @@ sequenceDiagram
 
 ## 担当する範囲
 
-| Tuckn GenAI Bridgeの担当範囲                         | 本パッケージを利用する側の担当範囲                     |
+| Tkn GenAI Bridgeの担当範囲                         | 本パッケージを利用する側の担当範囲                     |
 | ---------------------------------------------------- | ------------------------------------------------------ |
 | 接続先の選択、共通設定、認証方法、通信・外部プロセス | 入力ファイルの選択、分割・統合、用途に合ったプロンプト |
 | タイムアウト、例外、JSON Schema 検証、実行情報       | 出典との照合、Markdown への整形、保存・再開            |
@@ -198,6 +199,42 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 
 実用のプロンプトとスキーマは利用側パッケージのリソースに置いてください。
 実行できるサンプルは [examples/use_runtime.py](examples/use_runtime.py)、例外と結果の契約は [Python API](docs/reference/api.md) にあります。
+
+### 画像を添付する
+
+`ImageInput.from_file()` で画像を読み込み、`GenerationRequest.images` に指定順のリストを渡します。
+画像入力は Bridge 0.8.0以降で利用できます。画像に対応するモデルを選んでください。
+
+```python
+from tkn_genai_bridge import GenerationRequest, ImageInput, Runtime, load_profile
+
+request = GenerationRequest(
+    prompt="1枚目は全体図、2枚目は詳細です。図の配置や矢印の意味を説明してください。",
+    output_schema={
+        "type": "object",
+        "properties": {"markdown": {"type": "string"}},
+        "required": ["markdown"],
+        "additionalProperties": False,
+    },
+    images=[ImageInput.from_file("overview.png"), ImageInput.from_file("detail.png")],
+)
+with Runtime(load_profile("codex-default")) as runtime:
+    plan = runtime.plan(request)  # 通信・画像の一時保存なし
+    result = runtime.generate(request)
+print(result.data["markdown"])
+```
+
+補助CLIでは `--image` を繰り返して指定します。
+
+```shell
+tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --image overview.png --image detail.png --dry-run
+```
+
+対応形式はPNG・JPEG・WebP、1枚20 MiB以下です。読み込み時に画像の内容を固定し、元ファイルは変更しません。
+Claude Code・GitHub Copilot・AntigravityのBridgeアダプターは画像未対応のため、実行前に `unsupported_images` で停止します。
+画像ありの事前入力token概算は既定で `null`、参考額も不明です。必要なら画像分を含む総推定値を `plan(input_tokens=...)` へ渡します。
+実行記録には画像のハッシュ・形式・サイズと `input_sha256` を含めます。再利用判定では `input_sha256` も比較してください。
+画像のURL取得や自動縮小は行いません。詳細は [画像入力の契約](docs/reference/api.md#画像入力) を参照してください。
 
 ### 既存の生成処理を置き換える
 

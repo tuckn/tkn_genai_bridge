@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from . import __version__
 from .config import initialize_config, load_config, user_config_path
 from .errors import ConfigError, GenAIError, OutputValidationError, ProviderError, RequestError
+from .images import ImageInput
 from .logging_utils import SUCCESS, configure_logging
 from .models import GenerationRequest
 from .runtime import Runtime
@@ -53,6 +54,13 @@ def parser() -> argparse.ArgumentParser:
     _settings(generate)
     generate.add_argument("--prompt-file", required=True, type=Path, help="UTF-8 の入力プロンプト")
     generate.add_argument("--schema-file", required=True, type=Path, help="UTF-8 の JSON Schema")
+    generate.add_argument(
+        "--image",
+        action="append",
+        type=Path,
+        default=[],
+        help="添付するローカル画像（PNG/JPEG/WebP）。複数回指定でき、指定順に渡す",
+    )
     generate.add_argument(
         "--estimate-input-tokens",
         type=int,
@@ -131,7 +139,11 @@ def main(argv: list[str] | None = None) -> int:
                     raise RequestError(
                         "schema file must contain one strict JSON object", code="invalid_schema"
                     ) from None
-                request = GenerationRequest(prompt=prompt, output_schema=schema)
+                request = GenerationRequest(
+                    prompt=prompt,
+                    output_schema=schema,
+                    images=[ImageInput.from_file(path) for path in args.image],
+                )
                 with Runtime(resolved.profile()) as runtime:
                     if args.dry_run:
                         result = runtime.plan(
