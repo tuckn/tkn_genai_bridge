@@ -208,7 +208,18 @@ class Profile(StrictModel):
 class RuntimeConfig(StrictModel):
     schema_version: str = "1.1.0"
     default_profile: str = "codex-default"
-    profiles: dict[str, Profile] = Field(default_factory=lambda: {"codex-default": Profile()})
+    profiles: dict[str, Profile] = Field(
+        default_factory=lambda: {
+            "codex-default": Profile(),
+            "local-vision": Profile(
+                provider="ollama",
+                model="qwen3.5:9b",
+                local_only=True,
+                max_output_tokens=2048,
+                ollama=OllamaSettings(think=False, context_tokens=16384),
+            ),
+        }
+    )
 
     @model_validator(mode="after")
     def selected_profile_exists(self) -> RuntimeConfig:

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "answer": {"type": "string"},
+    "evidence": {"type": "array", "items": {"type": "string"}},
+    "uncertain": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["answer", "evidence", "uncertain"],
+  "additionalProperties": false
+}

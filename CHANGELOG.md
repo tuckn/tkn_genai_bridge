@@ -2,6 +2,12 @@
 
 ## 未リリース
 
+## 0.9.1
+
+- Ollamaの画像対応モデル `qwen3.5:9b` を選べる組み込み `local-vision` プロファイルを追加。ローカル限定、思考出力無効、出力2,048 token・コンテキスト16,384 tokenを初期値に設定。
+- 共通の画像説明プロンプト・JSON Schemaと、CLI／Python APIでの利用手順を追加。既存設定やモデルの取得状態は変更しません。
+- 補助CLIは `uv tool install . --reinstall` で更新できます。利用側アプリのBridgeも0.9.1以降へ更新してください。共有設定スキーマ1.1.0は変更なし。
+
 ## 0.9.0
 
 - Claude Code・Antigravityで `GenerationRequest.images` と補助CLIの `--image` に対応。

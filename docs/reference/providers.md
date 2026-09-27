@@ -188,6 +188,10 @@ claude -p "Reply only OK." --tools "" --no-session-persistence
 
 ## Ollama
 
+画像はLiteLLMを通じて `messages[].images` のbase64配列へ渡します。
+`local-vision` プロファイルを選ぶと、同じ `images` / `--image` APIでローカルVLMを利用できます。
+Bridge自体の画像転送は0.8.0から対応し、0.9.1でQwen用プロファイルと実行例を追加しました。
+
 `POST /api/chat` に `stream: false`、`format: <JSON Schema>` を送ります。
 `think` は設定された値をそのまま送り、別の推論レベルから推測で変換しません。
 終了状態、本文、JSON構造を確認します。

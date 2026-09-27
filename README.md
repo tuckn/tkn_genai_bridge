@@ -238,6 +238,26 @@ GitHub CopilotのBridgeアダプターは画像未対応のため、実行前に
 実行記録には画像のハッシュ・形式・サイズと `input_sha256` を含めます。再利用判定では `input_sha256` も比較してください。
 画像のURL取得や自動縮小は行いません。詳細は [画像入力の契約](docs/reference/api.md#画像入力) を参照してください。
 
+### Ollamaでローカル画像認識を使う
+
+`local-vision` は `qwen3.5:9b` 用の組み込みプロファイルです（Bridge 0.9.1以降）。
+Ollamaを起動し、未取得の場合は `ollama pull qwen3.5:9b` でモデルを取得してください。
+取得にはネット接続とディスク容量が必要です。生成は `local_only: true` で実行します。
+ローカル限定運用では、[Ollama側のクラウド無効化](docs/reference/providers.md#ollama)も設定してください。
+
+```shell
+tkn-genai-bridge generate --no-project-config --profile local-vision --prompt-file examples/vision-prompt.txt --schema-file examples/vision-output.schema.json --image "C:/path/to/image.png" --dry-run
+```
+
+`--dry-run` を外すと実際に画像を送信して生成します。複数枚は `--image` を繰り返します。
+Python APIでは上の画像入力例の `load_profile("codex-default")` を `load_profile("local-vision")` に変更します。
+既存のユーザー設定を作り直す必要はありません。組み込みプロファイルは既存設定とマージされ、同名のユーザー設定が優先されます。
+
+初期値は `think: false`、出力上限2,048 token、コンテキスト16,384 tokenです。
+長い説明や多数の画像で不足する場合は、[設定方法](docs/reference/configuration.md#ollama)に従って調整してください。
+モデルの初回ロードには時間がかかり、必要メモリと速度は機器・量子化・コンテキスト長で変わります。
+小さい文字や記号の厳密な転記は結果を確認してください。クラウドへの自動切り替えは行いません。
+
 ### 既存の生成処理を置き換える
 
 既存アプリに導入する開発者は、接続先への呼び出し部分を `Runtime` に置き換えます。

@@ -157,3 +157,24 @@ def test_init_atomic_publish_failure_cleans_pending_file(tmp_path, monkeypatch):
 def test_invalid_capability_combinations(settings):
     with pytest.raises(ValueError):
         Profile.model_validate(settings)
+
+
+def test_local_vision_available_with_existing_user_config(tmp_path):
+    user = write(tmp_path / "user.yaml", layer("existing-model"))
+    before = user.read_bytes()
+    resolved = load_config(user_file=user)
+    assert resolved.profile().model == "existing-model"
+    vision = resolved.profile("local-vision")
+    assert vision.provider == "ollama" and vision.local_only
+    assert vision.model == "qwen3.5:9b"
+    assert vision.ollama.think is False
+    assert vision.ollama.context_tokens == 16384
+    assert vision.max_output_tokens == 2048
+    assert resolved.field_sources["profiles.local-vision.model"] == "built-in"
+    assert user.read_bytes() == before
+    custom = write(
+        tmp_path / "custom.yaml",
+        'schema_version: "1.1.0"\nprofiles:\n  local-vision:\n    model: custom-vision\n',
+    )
+    overridden = load_config(user_file=user, config_file=custom).profile("local-vision")
+    assert overridden.model == "custom-vision" and overridden.local_only

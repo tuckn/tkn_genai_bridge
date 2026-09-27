@@ -34,6 +34,18 @@ profiles:
       base_url: http://127.0.0.1:11434
       think: false
 
+  # Local vision: install this model with Ollama before generating.
+  local-vision:
+    provider: ollama
+    model: qwen3.5:9b
+    local_only: true
+    timeout_seconds: 300.0
+    max_output_tokens: 2048
+    ollama:
+      base_url: http://127.0.0.1:11434
+      think: false
+      context_tokens: 16384
+
   # Cloud API
   azure-quality:
     provider: azure-openai

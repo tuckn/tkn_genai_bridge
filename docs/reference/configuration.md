@@ -92,6 +92,12 @@ Codex の WindowsApps ランチャーも拒否します。
 
 ### Ollama
 
+組み込みの `local-vision` は画像対応モデル `qwen3.5:9b` を指定します。
+`local_only: true`、`timeout_seconds: 300`、`max_output_tokens: 2048`、
+`ollama.think: false`、`ollama.context_tokens: 16384` が初期値です。
+モデルの取得やOllamaの起動は利用者が行います。`local` は従来どおり任意のローカルモデル用です。
+モデルを変更するときは、Ollama側でも画像入力に対応していることを確認してください。
+
 | キー | 既定値 | 意味 |
 | --- | --- | --- |
 | `base_url` | `http://127.0.0.1:11434` | パス・認証情報・クエリのないループバックURL |
