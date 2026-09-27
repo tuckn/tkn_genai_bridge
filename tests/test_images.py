@@ -105,22 +105,12 @@ def test_direct_bytes_validate_media_type_and_hide_validation_input():
         ImageInput(data=PNG, media_type="image/jpeg")
 
 
-@pytest.mark.parametrize("provider", ["github-copilot"])
-def test_unsupported_provider_rejected_before_backend_or_executable(provider, request_object, monkeypatch):
-    def forbidden(*args, **kwargs):
-        pytest.fail("unsupported images must fail before side effects")
+def test_unknown_image_provider_is_rejected(request_object):
+    from tkn_genai_bridge.images import validate_image_provider
 
-    monkeypatch.setattr(cli, "resolve_executable", forbidden)
-    monkeypatch.setattr("tkn_genai_bridge.runtime.resolve_executable", forbidden)
-    request = with_images(request_object)
-    runtime = Runtime(Profile(provider=provider))
-    for operation in (
-        lambda: runtime.plan(request, check_executable=True),
-        lambda: runtime.generate(request),
-    ):
-        with pytest.raises(RequestError) as exc:
-            operation()
-        assert exc.value.code == "unsupported_images"
+    with pytest.raises(RequestError) as exc:
+        validate_image_provider("unknown-provider", with_images(request_object).images)
+    assert exc.value.code == "unsupported_images"
 
 
 @pytest.mark.parametrize("fail", [False, True])

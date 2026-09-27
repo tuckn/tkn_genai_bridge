@@ -10,6 +10,7 @@ build/
 *.egg-info/
 .tkn/
 .tmp/
+/.local/
 .coverage
 htmlcov/
 

@@ -331,6 +331,44 @@ def _antigravity_result(
     return envelope, metadata, valid
 
 
+def _copilot_image_response(stdout: str) -> ProviderResponse:
+    """Read the final complete assistant message from a successful JSONL invocation."""
+    message: dict[str, Any] | None = None
+    terminal: dict[str, Any] | None = None
+    valid = True
+    for line in stdout.splitlines():
+        if not line.strip():
+            continue
+        if terminal is not None:
+            valid = False
+        try:
+            event = parse_object(line)
+        except GenAIError:
+            valid = False
+            continue
+        if event.get("type") == "assistant.message":
+            data = event.get("data")
+            if isinstance(data, dict):
+                message = data
+            else:
+                valid = False
+        elif event.get("type") == "result":
+            terminal = event
+        elif event.get("type") == "session.error":
+            valid = False
+    metadata = ResponseMetadata(response_model=model_name(message.get("model")) if message else None)
+    with preserve_metadata(metadata):
+        if terminal is None:
+            raise ProviderError("Copilot returned no result event", code="missing_output")
+        if not valid or type(terminal.get("exitCode")) is not int or terminal["exitCode"] != 0:
+            raise ProviderError("Copilot returned an unsuccessful stream", code="incomplete_response")
+        if message is None or not isinstance(message.get("content"), str):
+            raise ProviderError("Copilot returned no complete assistant message", code="missing_output")
+        if message.get("toolRequests"):
+            raise ProviderError("Copilot returned an unfinished tool request", code="incomplete_response")
+        return ProviderResponse(parse_object(message["content"]), metadata.response_model, metadata.usage)
+
+
 class CliBackend:
     def generate(self, profile: Profile, request: GenerationRequest) -> ProviderResponse:
         validate_image_provider(profile.provider, request.images)
@@ -470,6 +508,12 @@ class CliBackend:
                     "--deny-tool=memory",
                 ]
                 prompt = schema_prompt(request)
+                if request.images:
+                    command += ["--output-format", "json"]
+                for index, image in enumerate(request.images, start=1):
+                    path = cwd / f"image-{index:04d}{IMAGE_SUFFIXES[image.media_type]}"
+                    path.write_bytes(image.data)
+                    command += ["--attachment", str(path)]
             if profile.model:
                 command += ["--model", profile.model]
             if profile.reasoning_effort and profile.provider != "codex":
@@ -506,6 +550,8 @@ class CliBackend:
                         )
                     return ProviderResponse(data, metadata.response_model, metadata.usage)
             if profile.provider == "github-copilot":
+                if request.images:
+                    return _copilot_image_response(stdout)
                 return ProviderResponse(parse_object(stdout))  # Silent mode has no reliable metadata.
             if request.images:
                 envelope, valid = _claude_stream_result(stdout)

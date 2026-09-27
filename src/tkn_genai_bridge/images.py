@@ -86,7 +86,14 @@ def input_fingerprint(prompt: str, images: list[ImageMetadata]) -> str:
 
 
 def validate_image_provider(provider: str, images: list[ImageInput]) -> None:
-    if images and provider not in {"codex", "claude-code", "antigravity", "ollama", "azure-openai"}:
+    if images and provider not in {
+        "codex",
+        "claude-code",
+        "github-copilot",
+        "antigravity",
+        "ollama",
+        "azure-openai",
+    }:
         raise RequestError("image input is not supported by this provider", code="unsupported_images")
 
 

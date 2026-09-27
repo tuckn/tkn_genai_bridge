@@ -58,7 +58,13 @@ Claude Codeは `--input-format stream-json --output-format stream-json --verbose
 Antigravityのheadless入力はtextのみのため、一時画像の絶対パスを指示し、`--add-dir` で一時フォルダを指定します。
 全画像の `view_file` 完了イベントを確認できない場合は `image_read_failed` として停止します。元ファイル名は渡しません。
 専用一時フォルダは成功・失敗後に削除しますが、CLI側の履歴等の保持は各サービスの仕様に従います。
-GitHub CopilotのBridgeアダプターでは画像を受け付けません。
+Bridge 0.10.0からGitHub Copilotにも対応し、一時保存した連番画像を `--attachment` で指定順に渡します。
+非対話モードの標準入力・JSON Schema指示と既存のツール制限を維持します。
+画像ありではJSONL出力を使い、成功resultと最後の完全なassistant.messageを確認します。
+途中の案内文や差分を結果に混ぜず、最後の本文だけをJSON検証します。モデルIDはそのメッセージの報告値を使用します。
+画像なしは従来の本文のみのモードを維持します。token利用量は引き続き不明です。
+Copilot CLI 1.0.89-5で添付オプションを確認しました。画像対応モデルを選択してください。
+公式仕様: [Copilot CLI programmatic reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-programmatic-reference)。
 この対応表はBridgeの実装範囲であり、各製品全体の画像機能の有無を示すものではありません。
 モデルの画像対応、解像度・枚数・サイズ上限と構造化出力の組み合わせは、利用する接続先でも確認してください。
 

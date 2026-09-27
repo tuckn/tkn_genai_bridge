@@ -11,6 +11,25 @@ from tkn_genai_bridge import CliSettings, GenerationRequest, ImageInput, Profile
 from tkn_genai_bridge.providers import cli
 
 
+@pytest.mark.parametrize("case", ["missing-result", "failed", "trailing", "malformed", "tool", "no-message"])
+def test_copilot_stream_rejects_incomplete_results(case):
+    events = [{"type": "assistant.message", "data": {"content": '{"summary":"ok"}', "model": "actual"}}]
+    if case == "tool":
+        events[0]["data"]["toolRequests"] = [{"name": "unresolved"}]
+    if case == "no-message":
+        events = []
+    if case != "missing-result":
+        events.append({"type": "result", "exitCode": 1 if case == "failed" else 0})
+    if case == "trailing":
+        events.append({"type": "assistant.message_delta"})
+    output = "\n".join(json.dumps(e) for e in events)
+    if case == "malformed":
+        output = "private malformed content\n" + output
+    with pytest.raises(ProviderError) as exc:
+        cli._copilot_image_response(output)
+    assert "private" not in str(exc.value)
+
+
 def request_with_images(request):
     return GenerationRequest(
         prompt=request.prompt,
@@ -179,7 +198,7 @@ def test_antigravity_snapshots_read_receipts_and_cleanup(outcome, request_object
     assert "image-0001" not in record.model_dump_json()
 
 
-@pytest.mark.parametrize("provider", ["claude-code", "antigravity"])
+@pytest.mark.parametrize("provider", ["claude-code", "antigravity", "github-copilot"])
 def test_plan_with_images_has_no_process_or_temporary_writes(provider, request_object, monkeypatch):
     def forbidden(*a, **kw):
         pytest.fail("plan must not launch a process or create files")
@@ -188,3 +207,48 @@ def test_plan_with_images_has_no_process_or_temporary_writes(provider, request_o
     monkeypatch.setattr(cli.tempfile, "TemporaryDirectory", forbidden)
     plan = Runtime(profile(provider)).plan(request_with_images(request_object), check_executable=True)
     assert len(plan.images) == 3 and not plan.will_call_provider
+
+
+@pytest.mark.parametrize("outcome", ["success", "timeout", "invalid-json"])
+def test_copilot_attachments_preserve_bytes_order_and_cleanup(outcome, request_object, monkeypatch):
+    request = request_with_images(request_object)
+    paths = []
+
+    def run(command, prompt, cwd, timeout, **kwargs):
+        paths.extend(Path(command[i + 1]) for i, arg in enumerate(command) if arg == "--attachment")
+        assert [p.read_bytes() for p in paths] == [image.data for image in request.images]
+        assert [p.name for p in paths] == ["image-0001.jpg", "image-0002.webp", "image-0003.jpg"]
+        assert all(p.is_absolute() and p.parent == cwd for p in paths)
+        assert "--deny-tool=read" in command and "--deny-tool=shell" in command
+        assert "--no-ask-user" in command and "--no-remote-export" in command
+        assert request.prompt in prompt and "Return only one JSON object" in prompt
+        assert request.prompt not in command
+        assert command[command.index("--output-format") + 1] == "json"
+        if outcome == "timeout":
+            raise ProviderError("synthetic timeout", code="timeout")
+        content = '{"summary":"ok"}' if outcome == "success" else "private invalid output"
+        return "\n".join(
+            json.dumps(e)
+            for e in [
+                {"type": "assistant.message", "data": {"content": "No action taken."}},
+                {"type": "assistant.message", "data": {"content": content, "model": "observed-model"}},
+                {"type": "result", "exitCode": 0},
+            ]
+        )
+
+    monkeypatch.setattr(cli, "run_process", run)
+    runtime = Runtime(profile("github-copilot"))
+    if outcome == "success":
+        record = runtime.generate(request).record
+        assert record.response_model == "observed-model" and record.usage.completeness == "unknown"
+    else:
+        from tkn_genai_bridge import GenAIError
+
+        with pytest.raises(GenAIError) as exc:
+            runtime.generate(request)
+        assert exc.value.code == ("timeout" if outcome == "timeout" else "invalid_json")
+        record = exc.value.record
+        assert "private" not in str(exc.value)
+    assert paths and all(not p.exists() for p in paths)
+    assert len(record.images) == 3
+    assert "image-0001" not in record.model_dump_json()

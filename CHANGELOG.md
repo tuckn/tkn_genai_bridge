@@ -2,6 +2,13 @@
 
 ## 未リリース
 
+## 0.10.0
+
+- GitHub Copilotの `GenerationRequest.images` / `--image` に対応。Copilot CLIの `--attachment` へ画像を指定順に渡し、重複も保持。
+- 画像は専用一時フォルダに元ファイル名を含まない連番で保存し、成功・失敗後に削除。dry-runでは保存・送信しない。
+- 既存のツール制限、JSON検証、画像ハッシュ記録を維持。画像ありではJSONLの成功resultと最後の完全なassistant.messageを使い、途中の案内文を除外。応答モデルIDはそのメッセージの報告値を使用し、token利用量は不明のまま保持。
+- 画像対応モデルと `--attachment` 対応のCopilot CLIが必要。利用側アプリのBridgeも0.10.0以降へ更新し、補助CLIは `uv tool install . --reinstall` で更新してください。
+
 ## 0.9.1
 
 - Ollamaの画像対応モデル `qwen3.5:9b` を選べる組み込み `local-vision` プロファイルを追加。ローカル限定、思考出力無効、出力2,048 token・コンテキスト16,384 tokenを初期値に設定。

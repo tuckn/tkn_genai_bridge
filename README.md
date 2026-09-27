@@ -2,7 +2,7 @@
 
 Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
 プロンプトと JSON Schema を渡すと、検証済みの JSON オブジェクトと、モデル・利用量・実行時間の情報を返します。
-Codex・Claude Code・Antigravity・Ollama・Azure OpenAIでは、プロンプトに複数のローカル画像を添付できます。
+Codex・Claude Code・GitHub Copilot・Antigravity・Ollama・Azure OpenAIでは、プロンプトに複数のローカル画像を添付できます。
 生成前のtoken概算と、設定した参考単価によるコスト概算も通信なしで計算できます。
 
 利用側の CLI は、プロンプトと期待する出力形式（JSON Schema）を用意し、接続プロファイルを指定して Bridge を呼び出します。
@@ -233,7 +233,8 @@ tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-f
 `claude-default`・`antigravity-default` も同じ `images` / `--image` で利用できます（Bridge 0.9.0以降）。
 Claude Codeは画像を標準入力で渡し、Antigravityは専用一時フォルダの画像を読取ツールで開きます。
 Antigravityで全画像の読み取り完了を確認できない場合は `image_read_failed` で停止します。
-GitHub CopilotのBridgeアダプターは画像未対応のため、実行前に `unsupported_images` で停止します。
+GitHub Copilotも `copilot-default` で同じ画像入力を利用できます（Bridge 0.10.0以降）。
+Copilot CLIの `--attachment` に対応したバージョンと、画像対応モデルが必要です。
 画像ありの事前入力token概算は既定で `null`、参考額も不明です。必要なら画像分を含む総推定値を `plan(input_tokens=...)` へ渡します。
 実行記録には画像のハッシュ・形式・サイズと `input_sha256` を含めます。再利用判定では `input_sha256` も比較してください。
 画像のURL取得や自動縮小は行いません。詳細は [画像入力の契約](docs/reference/api.md#画像入力) を参照してください。
