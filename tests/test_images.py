@@ -105,7 +105,7 @@ def test_direct_bytes_validate_media_type_and_hide_validation_input():
         ImageInput(data=PNG, media_type="image/jpeg")
 
 
-@pytest.mark.parametrize("provider", ["claude-code", "github-copilot", "antigravity"])
+@pytest.mark.parametrize("provider", ["github-copilot"])
 def test_unsupported_provider_rejected_before_backend_or_executable(provider, request_object, monkeypatch):
     def forbidden(*args, **kwargs):
         pytest.fail("unsupported images must fail before side effects")
@@ -252,7 +252,7 @@ def test_cli_repeated_images_and_dry_run_no_writes(tmp_path, capsys, monkeypatch
     config, prompt, schema = (tmp_path / name for name in ("config.yaml", "prompt.txt", "schema.json"))
     config.write_text(
         'schema_version: "1.1.0"\ndefault_profile: p\nprofiles:\n'
-        '  p:\n    provider: ollama\n    model: vision\n',
+        "  p:\n    provider: ollama\n    model: vision\n",
         encoding="utf-8",
     )
     prompt.write_text("synthetic", encoding="utf-8")

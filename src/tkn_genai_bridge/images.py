@@ -86,10 +86,8 @@ def input_fingerprint(prompt: str, images: list[ImageMetadata]) -> str:
 
 
 def validate_image_provider(provider: str, images: list[ImageInput]) -> None:
-    if images and provider not in {"codex", "ollama", "azure-openai"}:
-        raise RequestError(
-            "image input is supported only by codex, ollama and azure-openai", code="unsupported_images"
-        )
+    if images and provider not in {"codex", "claude-code", "antigravity", "ollama", "azure-openai"}:
+        raise RequestError("image input is not supported by this provider", code="unsupported_images")
 
 
 def message_content(prompt: str, images: list[ImageInput]) -> str | list[dict[str, Any]]:

@@ -2,6 +2,14 @@
 
 ## 未リリース
 
+## 0.9.0
+
+- Claude Code・Antigravityで `GenerationRequest.images` と補助CLIの `--image` に対応。
+- Claude Codeは標準入力のbase64画像ブロックとstream-json応答を使用。最終resultから構造化出力・モデル・利用量を取得し、途中失敗の利用量も保持。
+- Antigravityは専用一時フォルダの連番画像を絶対パスで渡し、全画像の読取完了を確認。未確認の場合は `image_read_failed` で停止し、取得済み利用量は失敗記録に保持。
+- 画像なしの入力方式、dry-runの読み取り専用動作、画像の指定順・重複・ハッシュ記録を維持。GitHub Copilotの画像入力は引き続き未対応。
+- 利用側アプリのBridge依存と補助CLIを0.9.0以降へ更新・再インストールしてください。共有設定スキーマ1.1.0は変更なし。
+
 ## 0.8.0
 
 - `ImageInput.from_file()` / `ImageInput(data=..., media_type=...)` と `GenerationRequest.images` を追加。複数のPNG・JPEG・WebPを指定順に添付可能。

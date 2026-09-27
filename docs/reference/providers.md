@@ -2,8 +2,7 @@
 
 本パッケージは接続先ごとの設定を共通APIに変換します。
 各製品の認証、利用枠、モデルの可用性は統合しません。
-以下の公式仕様とローカル実装を2026年9月22日に確認しました。
-実サービスへの生成要求は実行していません。
+以下に接続方式と検証範囲を記載します。画像入力は2026年9月27日に更新しました。
 
 ## LiteLLM Python SDK
 
@@ -53,14 +52,23 @@ Ollamaの事前確認も同じ契約です。秒数・HTTP日時を待機秒数�
 Bridge 0.8.0からCodex・Ollama・Azure OpenAIへ複数のPNG・JPEG・WebP画像を添付できます。
 Codexでは専用一時フォルダの画像を `--image` で渡し、API接続ではテキストとbase64の `image_url` をLiteLLMへ渡します。
 実SDK経由の模擬HTTPテストで、Ollamaの `messages[].images` とAzureの画像contentに指定順の全バイト列が届くことを確認します。
-Claude Code・GitHub Copilot・AntigravityのBridgeアダプターでは画像を受け付けません。
+Bridge 0.9.0からClaude Code・Antigravityにも対応します。
+Claude Codeは `--input-format stream-json --output-format stream-json --verbose` で、テキストとbase64画像ブロックを標準入力へ渡します。
+画像なしの場合は従来のJSON出力を使用します。画像ありでは最終resultの構造化出力・モデル・累計利用量を読み取ります。
+Antigravityのheadless入力はtextのみのため、一時画像の絶対パスを指示し、`--add-dir` で一時フォルダを指定します。
+全画像の `view_file` 完了イベントを確認できない場合は `image_read_failed` として停止します。元ファイル名は渡しません。
+専用一時フォルダは成功・失敗後に削除しますが、CLI側の履歴等の保持は各サービスの仕様に従います。
+GitHub CopilotのBridgeアダプターでは画像を受け付けません。
 この対応表はBridgeの実装範囲であり、各製品全体の画像機能の有無を示すものではありません。
 モデルの画像対応、解像度・枚数・サイズ上限と構造化出力の組み合わせは、利用する接続先でも確認してください。
 
 転送形式の参考: [Codex CLI](https://developers.openai.com/codex/cli/)、
 [LiteLLM Vision](https://docs.litellm.ai/docs/completion/vision)、
 [Azure画像入力](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/gpt-with-vision)。
-2026年9月26日にローカルCodex CLIの `exec --help` と実SDKの模擬通信で検証。実画像をサービスへ送る試験は実施していません。
+Claudeの[Streaming Input](https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode)、
+Antigravityの[headless入力](https://www.antigravity.google/docs/cli/headless/)も参照。
+2026年9月27日にCodex・Claude Code・AntigravityのCLIでJPEG写真・PNG画面の実認識を確認。
+認識精度の評価は本リポジトリの対象外です。個人のサンプル画像・応答・参考情報は自動テストや公開資料へ含めません。
 
 ## CLI接続
 

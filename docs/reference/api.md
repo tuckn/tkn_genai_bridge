@@ -65,12 +65,16 @@ URL・data URL文字列の入力、画像生成、変換、縮小、OCRはこの
 読み込み後は元ファイルを参照せず、固定したバイト列を `plan()` と `generate()` で共用します。
 ファイル更新を反映する場合は `ImageInput` を再作成してください。
 
-Codex・Ollama・Azure OpenAIのアダプターが対応します。モデルの画像対応は利用側で確認してください。
+Codex・Claude Code・Antigravity・Ollama・Azure OpenAIのアダプターが対応します。モデルの画像対応は利用側で確認してください。
 その他のBridgeアダプターは、認証・通信・実行ファイル確認・一時保存より前に `RequestError(code="unsupported_images")` で停止します。
 ファイル読み込み失敗は `image_io`、ファイル形式・サイズ違反は `invalid_image` です。
 直接 `ImageInput(...)` を構築した場合の型・形式違反はPydanticの `ValidationError` です。
 
-`plan()` は画像を保存・送信しません。Codex実行時だけ専用の一時フォルダへ連番で画像を保存し、成功・失敗後に削除します。
+`plan()` は画像を保存・送信しません。Codex・Antigravity実行時は専用の一時フォルダへ連番で画像を保存し、成功・失敗後に削除します。
+Claude Codeはbase64画像ブロックを標準入力の `stream-json` で渡し、画像の一時保存は行いません。
+Antigravityは一時画像の絶対パスを指示し、`view_file` の完了イベントを全画像について確認します。
+確認できない場合は `ProviderError(code="image_read_failed")` となり、取得済みの利用量は失敗記録に保持します。
+これは画像読取の完了確認であり、回答の認識精度を検証するものではありません。CLI独自の履歴・保持方針は各サービスに従います。
 API接続は画像をbase64化して要求内に含め、外部URLから取得しません。`local_only` の制約は画像にも適用されます。
 プラン・成功記録・生成失敗記録の `images` は、指定順の `ImageMetadata` (`sha256`, `media_type`, `size_bytes`) です。
 元パス・ファイル名・画像バイト列・base64本文はこれらの記録に含めません。入力オブジェクト自体の保存・ログ出力は利用側の責任です。
