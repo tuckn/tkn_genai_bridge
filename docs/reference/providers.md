@@ -49,6 +49,8 @@ Ollamaの事前確認も同じ契約です。秒数・HTTP日時を待機秒数�
 
 ## 画像の転送
 
+接続先とモデルの対応、実生成の確認範囲、比較方法は[VLMの対応と比較](vision.md)を参照してください。
+
 Bridge 0.8.0からCodex・Ollama・Azure OpenAIへ複数のPNG・JPEG・WebP画像を添付できます。
 Codexでは専用一時フォルダの画像を `--image` で渡し、API接続ではテキストとbase64の `image_url` をLiteLLMへ渡します。
 実SDK経由の模擬HTTPテストで、Ollamaの `messages[].images` とAzureの画像contentに指定順の全バイト列が届くことを確認します。
@@ -73,7 +75,7 @@ Copilot CLI 1.0.89-5で添付オプションを確認しました。画像対応
 [Azure画像入力](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/gpt-with-vision)。
 Claudeの[Streaming Input](https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode)、
 Antigravityの[headless入力](https://www.antigravity.google/docs/cli/headless/)も参照。
-2026年9月27日にCodex・Claude Code・AntigravityのCLIでJPEG写真・PNG画面の実認識を確認。
+2026年9月27日にCodex・Claude Code・GitHub Copilot・AntigravityのCLIと、Ollamaの`local-vision`でJPEG写真・PNG画面の実認識を確認。
 認識精度の評価は本リポジトリの対象外です。個人のサンプル画像・応答・参考情報は自動テストや公開資料へ含めません。
 
 ## CLI接続
@@ -92,7 +94,7 @@ CLIへ渡すコピーからルートの `$schema` だけを省略します。
 | ------------------ | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | Codex              | `exec`、`--ephemeral`、`--ignore-user-config`、`--sandbox read-only`、`--output-schema`                | 最終出力ファイル、JSONLの利用量                           |
 | Claude Code        | `-p`、`--json-schema`、`--tools ""`、`--permission-mode dontAsk`、MCP設定制限、セッション保存無効        | `structured_output`、usage、取得できるモデル情報        |
-| GitHub Copilot     | silentモード、標準入力、組み込みMCPとカスタム指示の無効化、read/write/shell/url/memory拒否                       | JSON本文。実モデル・利用量は不明                          |
+| GitHub Copilot     | 標準入力、組み込みMCPとカスタム指示の無効化、read/write/shell/url/memory拒否。画像なしはsilentモード       | 画像なしはJSON本文、画像ありはJSONLの最終本文とモデルID。利用量は不明 |
 | Google Antigravity | `agy`、入出力 `stream-json`、`--json-schema`、`--disable-slash-commands`、`--mode plan`、`--sandbox` | 最終resultの`structured_output` とusage。実モデルは不明 |
 
 Codex のユーザー設定は読みませんが、認証には通常の CODEX_HOME を使います。

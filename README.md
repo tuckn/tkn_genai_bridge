@@ -2,7 +2,7 @@
 
 Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
 プロンプトと JSON Schema を渡すと、検証済みの JSON オブジェクトと、モデル・利用量・実行時間の情報を返します。
-Codex・Claude Code・GitHub Copilot・Antigravity・Ollama・Azure OpenAIでは、プロンプトに複数のローカル画像を添付できます。
+6種類の接続先で画像入力に対応します。[VLMの対応と比較](docs/reference/vision.md)に、モデルを選ぶ際の確認点と検証範囲をまとめています。
 生成前のtoken概算と、設定した参考単価によるコスト概算も通信なしで計算できます。
 
 利用側の CLI は、プロンプトと期待する出力形式（JSON Schema）を用意し、接続プロファイルを指定して Bridge を呼び出します。
@@ -202,62 +202,14 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 
 ### 画像を添付する
 
-`ImageInput.from_file()` で画像を読み込み、`GenerationRequest.images` に指定順のリストを渡します。
-
-```python
-from tkn_genai_bridge import GenerationRequest, ImageInput, Runtime, load_profile
-
-request = GenerationRequest(
-    prompt="1枚目は全体図、2枚目は詳細です。図の配置や矢印の意味を説明してください。",
-    output_schema={
-        "type": "object",
-        "properties": {"markdown": {"type": "string"}},
-        "required": ["markdown"],
-        "additionalProperties": False,
-    },
-    images=[ImageInput.from_file("overview.png"), ImageInput.from_file("detail.png")],
-)
-with Runtime(load_profile("codex-default")) as runtime:
-    plan = runtime.plan(request)  # 通信・画像の一時保存なし
-    result = runtime.generate(request)
-print(result.data["markdown"])
-```
-
-補助CLIでは `--image` を繰り返して指定します。
+Python APIでは `GenerationRequest.images` に `ImageInput.from_file()` で読み込んだ画像を渡します。
+補助CLIでは `--image` を繰り返して指定します。次の例は通信しない事前確認です。
 
 ```shell
-tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --image overview.png --image detail.png --dry-run
+tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/vision-prompt.txt --schema-file examples/vision-output.schema.json --image overview.png --image detail.png --dry-run
 ```
 
-対応形式はPNG・JPEG・WebP、1枚20 MiB以下です。読み込み時に画像の内容を固定し、元ファイルは変更しません。
-`claude-default`・`antigravity-default` も同じ `images` / `--image` で利用できます（Bridge 0.9.0以降）。
-Claude Codeは画像を標準入力で渡し、Antigravityは専用一時フォルダの画像を読取ツールで開きます。
-Antigravityで全画像の読み取り完了を確認できない場合は `image_read_failed` で停止します。
-GitHub Copilotも `copilot-default` で同じ画像入力を利用できます（Bridge 0.10.0以降）。
-Copilot CLIの `--attachment` に対応したバージョンと、画像対応モデルが必要です。
-画像ありの事前入力token概算は既定で `null`、参考額も不明です。必要なら画像分を含む総推定値を `plan(input_tokens=...)` へ渡します。
-実行記録には画像のハッシュ・形式・サイズと `input_sha256` を含めます。再利用判定では `input_sha256` も比較してください。
-画像のURL取得や自動縮小は行いません。詳細は [画像入力の契約](docs/reference/api.md#画像入力) を参照してください。
-
-### Ollamaでローカル画像認識を使う
-
-`local-vision` は `qwen3.5:9b` 用の組み込みプロファイルです（Bridge 0.9.1以降）。
-Ollamaを起動し、未取得の場合は `ollama pull qwen3.5:9b` でモデルを取得してください。
-取得にはネット接続とディスク容量が必要です。生成は `local_only: true` で実行します。
-ローカル限定運用では、[Ollama側のクラウド無効化](docs/reference/providers.md#ollama)も設定してください。
-
-```shell
-tkn-genai-bridge generate --no-project-config --profile local-vision --prompt-file examples/vision-prompt.txt --schema-file examples/vision-output.schema.json --image "C:/path/to/image.png" --dry-run
-```
-
-`--dry-run` を外すと実際に画像を送信して生成します。複数枚は `--image` を繰り返します。
-Python APIでは上の画像入力例の `load_profile("codex-default")` を `load_profile("local-vision")` に変更します。
-既存のユーザー設定を作り直す必要はありません。組み込みプロファイルは既存設定とマージされ、同名のユーザー設定が優先されます。
-
-初期値は `think: false`、出力上限2,048 token、コンテキスト16,384 tokenです。
-長い説明や多数の画像で不足する場合は、[設定方法](docs/reference/configuration.md#ollama)に従って調整してください。
-モデルの初回ロードには時間がかかり、必要メモリと速度は機器・量子化・コンテキスト長で変わります。
-小さい文字や記号の厳密な転記は結果を確認してください。クラウドへの自動切り替えは行いません。
+対応する接続先、モデルの選び方、確認済みの範囲、ローカル限定の `local-vision`、比較方法は[VLMの対応と比較](docs/reference/vision.md)を参照してください。
 
 ### 既存の生成処理を置き換える
 
@@ -319,7 +271,7 @@ dry-run専用の `--estimate-input-tokens` / `--estimate-output-tokens` は0以�
 | ------------------ | ------------------------------------ | -------------------------------------------------- |
 | Codex              | `codex exec`                       | 対応オプションを持つスタンドアロンCLIとログイン    |
 | Claude Code        | `claude -p`                        | CLIと[ログイン済み認証](#claude-codeでログインする) |
-| GitHub Copilot     | 標準入力＋silent出力                 | CLIと認証                                          |
+| GitHub Copilot     | 標準入力。画像ありはJSONL出力       | CLIと認証                                          |
 | Google Antigravity | `agy` のNDJSON入出力               | CLIとログイン済み認証                              |
 | Ollama             | LiteLLM SDK → ローカル`/api/chat` | サーバーと取得済みモデル                           |
 | Azure OpenAI       | LiteLLM SDK → v1 Chat Completions   | endpoint、デプロイ名、APIキーまたはEntra認証       |
@@ -386,6 +338,7 @@ uv build
 
 - [設定仕様と接続プロファイル例](docs/reference/configuration.md)
 - [Python API・失敗時の扱い](docs/reference/api.md)
+- [VLMの対応と比較](docs/reference/vision.md)
 - [token・コスト概算と単価設定](docs/reference/costs.md)
 - [プロバイダーごとの接続仕様と公式資料](docs/reference/providers.md)
 - [変更履歴](CHANGELOG.md)

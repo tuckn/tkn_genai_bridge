@@ -55,6 +55,8 @@ Markdown の囲み、説明文、重複キー、NaN、Infinity はエラーで�
 
 ## 画像入力
 
+接続先とモデルの対応、検証範囲、比較方法は[VLMの対応と比較](vision.md)を参照してください。
+
 `ImageInput.from_file(path)` はローカルファイルを読み込み、`ImageInput(data=bytes, media_type=...)` は
 メモリ上の画像を受け取ります。PNG (`image/png`)・JPEG (`image/jpeg`)・WebP (`image/webp`) に対応し、1枚20 MiB以下です。
 拡張子ではなくファイル先頭のシグネチャとMIME形式を照合します。画像全体のデコード検証は行わないため、破損やモデル側の制限は生成時にエラーになる場合があります。
