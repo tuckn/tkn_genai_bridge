@@ -373,7 +373,7 @@ def test_invalid_pricing_layer_cannot_be_hidden_by_valid_override(tmp_path, upda
     assert "PRIVATE" not in str(exc.value)
 
 
-def test_cli_estimate_and_show_are_read_only_json(tmp_path, capsys):
+def test_cli_estimate_and_list_are_read_only_json(tmp_path, capsys):
     path = config_file(tmp_path)
     prompt, schema = tmp_path / "prompt.txt", tmp_path / "schema.json"
     prompt.write_text("PRIVATE prompt", encoding="utf-8")
@@ -386,7 +386,7 @@ def test_cli_estimate_and_show_are_read_only_json(tmp_path, capsys):
     assert result["token_estimate"]["output_tokens"] == 20
     assert result["cost_estimate"]["amount"] > 0
     assert "PRIVATE" not in output.out + output.err
-    assert main(["config", "show", "--config", str(path)]) == 0
+    assert main(["config", "list", "--json", "--config", str(path)]) == 0
     assert (
         json.loads(capsys.readouterr().out)["settings"]["profiles"]["p"]["pricing"]["m"]["currency"] == "JPY"
     )

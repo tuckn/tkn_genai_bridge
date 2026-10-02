@@ -25,7 +25,32 @@
 `profiles` の名前は識別子であり、`azure-quality` のような名前を使えます。
 設定プロパティ自体は `snake_case` です。
 
-`config show` は最終値、読み込んだファイル・版、各項目を採用した設定元を表示します。
+`config list` は解決後の設定、選択中のプロファイル（`settings.default_profile`）、
+読み込んだ設定元と各ファイルのスキーマ版、移行の有無（`sources`）、
+各項目を採用した設定元（`field_sources`）を表示します。
+有効なスキーマ版は `settings.schema_version`、通常の設定ファイルの場所は `user_config_path` です。
+
+既定の標準出力は `git config --list` のような1行1項目の `key=value` です。
+入れ子のマッピングはドット、配列は `[0]` などの添字で表し、空の配列・マッピングは `[]`・`{}`、
+真偽値は `true` / `false`、未設定値は `null` と表示します。
+文字列にJSONの引用符を付けず、Windowsパスのバックスラッシュも二重にしません。
+改行・タブなどの制御文字はエスケープして1行に収めます。
+
+```text
+settings.schema_version=1.1.0
+settings.default_profile=codex-default
+settings.profiles.codex-default.model=null
+settings.profiles.codex-default.local_only=false
+settings.profiles.codex-default.pricing={}
+sources[0].name=built-in
+sources[0].migrated=false
+field_sources.profiles.codex-default.model=built-in
+```
+
+構造化した結果が必要な場合は `tkn-genai-bridge config list --json` を使います。
+JSONの構造は `settings`、`user_config_path`、`sources`、`field_sources` です。
+どちらの形式でも設定ファイル・state・cache・reportを作成・更新せず、認証・通信・外部CLI起動を行いません。
+確認ログはINFOレベルで標準エラーへ出力し、`--quiet` をコマンドの前に付けると抑制できます。
 APIキーの環境変数名は表示しますが、環境変数の値を取得・表示しません。
 設定内容を表示する操作なので、接続先や実行ファイルのパスを第三者に共有する際は利用者が確認してください。
 
@@ -188,5 +213,5 @@ CLIのモデルが `null` の場合、事前の単価は不明で、実行後に
 Azureは常に要求したデプロイ名で選択し、返されたモデル名に別の単価を推測適用しません。
 
 マッピングは再帰的に統合されるため、単価の一部だけを追加ファイルや `overrides` で更新できます。
-各単価の設定元は `config show` の `field_sources` で確認できます。
+各単価の設定元は `config list` の `field_sources` で確認できます。
 `pricing: {}` は上位設定にある単価の削除にはなりません。価格を切り離す場合は別プロファイルを使用してください。

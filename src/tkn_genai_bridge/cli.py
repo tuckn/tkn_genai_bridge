@@ -48,8 +48,9 @@ def parser() -> argparse.ArgumentParser:
     init = actions.add_parser("init", help="設定を作成。同一内容は unchanged、編集済みは保護")
     init.add_argument("--path", type=Path, help="作成先。既定: ~/.tkn/genai_bridge/config.yaml")
     init.add_argument("--dry-run", action="store_true", help="書き込み・認証・通信なしで作成予定を確認")
-    show = actions.add_parser("show", help="解決済み設定と設定元を JSON で表示。通信・書き込みなし")
-    _settings(show)
+    listing = actions.add_parser("list", help="解決済み設定と設定元を key=value で表示。通信・書き込みなし")
+    _settings(listing)
+    listing.add_argument("--json", action="store_true", help="解決済み設定と設定元を JSON で表示")
     generate = commands.add_parser("generate", help="生成AIを呼び出し、検証済み JSON を stdout に表示")
     _settings(generate)
     generate.add_argument("--prompt-file", required=True, type=Path, help="UTF-8 の入力プロンプト")
@@ -100,6 +101,35 @@ def _resolved(args: argparse.Namespace) -> Any:
     if values:
         overrides["profiles"] = {selected: values}
     return load_config(**arguments, overrides=overrides)
+
+
+def config_lines(value: Any, prefix: str = "") -> list[str]:
+    """Flatten configuration into copyable key=value lines, preserving Windows paths."""
+    if isinstance(value, dict):
+        if not value:
+            return [f"{prefix}={{}}"]
+        return [
+            line
+            for key, item in value.items()
+            for line in config_lines(item, f"{prefix}.{key}" if prefix else key)
+        ]
+    if isinstance(value, list):
+        if not value:
+            return [f"{prefix}=[]"]
+        return [
+            line
+            for index, item in enumerate(value)
+            for line in config_lines(item, f"{prefix}[{index}]")
+        ]
+    if isinstance(value, str):
+        escapes = {"\r": r"\r", "\n": r"\n", "\t": r"\t"}
+        display = "".join(
+            escapes.get(char, f"\\u{ord(char):04x}") if ord(char) < 32 or ord(char) == 127 else char
+            for char in value
+        )
+    else:
+        display = json.dumps(value, ensure_ascii=False, allow_nan=False)
+    return [f"{prefix}={display}"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -156,8 +186,15 @@ def main(argv: list[str] | None = None) -> int:
                     else:
                         logger.info("Generating with %s", runtime.profile.provider)
                         result = runtime.generate(request).model_dump()
-        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-        logger.log(SUCCESS, "Completed")
+        listing = args.command == "config" and args.action == "list"
+        if listing and not args.json:
+            print("\n".join(config_lines(result)))
+        else:
+            print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+        if listing:
+            logger.info("Showing resolved configuration")
+        else:
+            logger.log(SUCCESS, "Completed")
         return 0
     except GenAIError as exc:
         logger.error("%s: %s", exc.code, exc)

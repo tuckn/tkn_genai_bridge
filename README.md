@@ -85,12 +85,15 @@ Azure OpenAI の API キー認証と Microsoft Entra ID 認証（ブラウザー
 ```shell
 tkn-genai-bridge config init --dry-run
 tkn-genai-bridge config init
-tkn-genai-bridge config show --no-project-config
+tkn-genai-bridge config list --no-project-config
 ```
 
 `config init` は `~/.tkn/genai_bridge/config.yaml` を作成し、絶対パスと作成結果を表示します。
 同じ内容なら `unchanged`、編集済みならエラーで停止して既存ファイルを保持します。
 作成したファイルを編集し、利用する接続プロファイルを追加してください。
+
+`config list` は設定と設定元を1行1項目の `key=value` で表示します。
+Windowsパスはそのままコピーできます。JSONが必要な場合は `config list --json` を使います。
 
 初期設定は `codex-default` です。
 Codex CLI のログイン済み認証を使い、モデルは CLI の既定値を使います。
@@ -255,7 +258,7 @@ Azureではモデル名の代わりにデプロイ名をキーにします。単
 | 目的                 | コマンド                                                            | 結果・副作用                           |
 | -------------------- | ------------------------------------------------------------------- | -------------------------------------- |
 | 設定の作成           | `tkn-genai-bridge config init [--path PATH] [--dry-run]`          | 通常は設定ファイルを新規作成           |
-| 設定元と最終値の確認 | `tkn-genai-bridge config show [--config PATH] [--profile NAME]`   | 読み取りのみ。認証情報の値は解決しない |
+| 設定元と最終値の確認 | `tkn-genai-bridge config list [--config PATH] [--profile NAME] [--json]`   | 読み取りのみ。認証情報の値は解決しない |
 | 生成                 | `tkn-genai-bridge generate --prompt-file PATH --schema-file PATH` | 接続先へ送信し、JSON を表示            |
 | 生成前の確認         | 上記に`--dry-run` を追加                                          | 通信・認証・書き込みなし               |
 | バージョン確認       | `tkn-genai-bridge --version`                                      | インストール済みの版を表示             |

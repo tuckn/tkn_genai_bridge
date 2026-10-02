@@ -2,6 +2,10 @@
 
 ## 未リリース
 
+- `config show` を廃止し、`config list` に変更。既定では1行1項目の `key=value` を表示し、Windowsパスをそのままコピーできます。従来の構造化JSONは `config list --json` で取得できます。
+- 設定確認のログをINFOレベルへ変更。解決後の設定、設定元・スキーマ版・移行の有無は両形式で確認でき、設定の読み取りだけを行います。
+- 補助CLIは `uv tool install . --reinstall` で更新してください。既存の自動処理で `config show` のJSONを使用している場合は `config list --json` に置き換えてください。設定スキーマは1.1.0を維持します。
+
 ## 0.10.0
 
 - GitHub Copilotの `GenerationRequest.images` / `--image` に対応。Copilot CLIの `--attachment` へ画像を指定順に渡し、重複も保持。

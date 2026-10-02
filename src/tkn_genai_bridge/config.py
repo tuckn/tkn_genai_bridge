@@ -158,7 +158,7 @@ class ResolvedConfig:
         try:
             profile = self.config.profiles[selected].model_copy(deep=True)
         except KeyError:
-            raise ConfigError("profile was not found; inspect config show", code="unknown_profile") from None
+            raise ConfigError("profile was not found; inspect config list", code="unknown_profile") from None
         profile._profile_name = selected
         return profile
 
