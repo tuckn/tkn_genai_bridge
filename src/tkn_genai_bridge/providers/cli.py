@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import platform
 import shutil
 import signal
 import subprocess
@@ -20,6 +21,66 @@ from ..models import CLI_EXECUTABLES, GenerationRequest, Profile, ResponseMetada
 from ..usage import summarize_usage
 from ..validation import parse_object
 from .base import ProviderResponse, model_name, number, preserve_metadata
+
+
+def _resolve_windows_copilot_shim(shim: Path) -> str:
+    def fail(reason: str) -> ProviderError:
+        return ProviderError(
+            f"detected Copilot shim '{shim}'; {reason}; shell shims are not executed. "
+            "Set cli.executable to a native copilot.exe path, or reinstall @github/copilot "
+            "with npm optional dependencies enabled",
+            code="invalid_executable",
+        )
+
+    arch = {"amd64": "x64", "x86_64": "x64", "arm64": "arm64", "aarch64": "arm64"}.get(
+        platform.machine().casefold()
+    )
+    if arch is None:
+        raise fail(f"unsupported Windows architecture '{platform.machine()}' (supported: x64, arm64)")
+    # npm global shims live beside node_modules; local shims live in node_modules/.bin.
+    modules = shim.parent.parent if shim.parent.name == ".bin" else shim.parent / "node_modules"
+    package = modules / "@github" / "copilot"
+    manifest = package / "package.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise fail(f"cannot read npm package metadata at '{manifest}'") from None
+    native_name = f"@github/copilot-win32-{arch}"
+    if (
+        not isinstance(data, dict)
+        or data.get("name") != "@github/copilot"
+        or data.get("bin") != {"copilot": "npm-loader.js"}
+        or not isinstance(data.get("optionalDependencies"), dict)
+        or native_name not in data["optionalDependencies"]
+    ):
+        raise fail(f"unsupported npm package layout at '{manifest}' (expected {native_name})")
+
+    reasons = []
+    # npm may nest the optional dependency or hoist it beside @github/copilot.
+    for native in (
+        package / "node_modules" / "@github" / f"copilot-win32-{arch}",
+        modules / "@github" / f"copilot-win32-{arch}",
+    ):
+        executable = native / "copilot.exe"
+        native_manifest = native / "package.json"
+        try:
+            metadata = json.loads(native_manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            reasons.append(f"cannot read npm package metadata at '{native_manifest}' for '{executable}'")
+            continue
+        if (
+            not isinstance(metadata, dict)
+            or metadata.get("name") != native_name
+            or metadata.get("os") != ["win32"]
+            or metadata.get("cpu") != [arch]
+            or metadata.get("exports") != {".": "./copilot.exe"}
+        ):
+            reasons.append(f"unsupported native package metadata at '{native_manifest}' for '{executable}'")
+        elif not executable.is_file():
+            reasons.append(f"native executable not found at '{executable}'")
+        else:
+            return str(executable.resolve())
+    raise fail("; ".join(reasons))
 
 
 def resolve_executable(profile: Profile) -> str:
@@ -52,8 +113,17 @@ def resolve_executable(profile: Profile) -> str:
             "use the standalone Codex CLI instead of the WindowsApps launcher", code="invalid_executable"
         )
     if Path(found).suffix.casefold() in {".cmd", ".bat", ".ps1"}:
+        shim = Path(found).resolve()
+        if (
+            sys.platform == "win32"
+            and profile.provider == "github-copilot"
+            and shim.name.casefold() in {"copilot.cmd", "copilot.ps1"}
+        ):
+            return _resolve_windows_copilot_shim(shim)
         raise ProviderError(
-            "configure a native executable; shell shims are not supported", code="invalid_executable"
+            f"detected shell shim '{found}'; configure a native executable with cli.executable; "
+            "shell shims are not supported",
+            code="invalid_executable",
         )
     return found
 

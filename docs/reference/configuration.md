@@ -115,6 +115,24 @@ Azure の認証待機は認証ライブラリが管理するため、`timeout_se
 ネイティブ実行ファイルを指定してください。
 Codex の WindowsApps ランチャーも拒否します。
 
+Windows の GitHub Copilot は、PATH で検出した npm の `copilot.cmd` / `copilot.ps1` から
+ネイティブ本体を自動解決します。`cli.executable` の指定が優先され、有効なネイティブ実行ファイルや
+PATH 上の `.exe` はそのまま使用します。明示指定した npm shim にも同じ解決を適用します。
+`default_profile: copilot-default`、`provider: github-copilot`、`model: null` の設定でも、
+`cli.executable` に絶対パスを追加する必要はありません。
+
+対応する npm 構成は、global prefix 直下の shim とローカル `node_modules\.bin` の shim です。
+検出位置を基準に `node_modules\@github\copilot` のパッケージ情報を確認し、
+Windows のアーキテクチャに対応する `@github/copilot-win32-x64` または
+`@github/copilot-win32-arm64` の `copilot.exe` を探します（x86 は未対応）。
+本体パッケージは Copilot 配下の `node_modules`、または同じ `@github` 配下への hoist に対応します。
+Copilot CLI 1.0.94 の x64 / ARM64 パッケージ情報で構成を確認しています。
+shim の内容や `npm-loader.js` は実行・評価せず、本体を `shell=False` で直接起動します。
+未知の shim・パッケージ構成や本体不在では、検出したパス、停止理由、
+`cli.executable` による指定方法をエラーに表示します。
+必要に応じて npm の optional dependencies を有効にして `@github/copilot` を再インストールするか、
+利用可能な `copilot.exe` を指定してください。別のプロバイダーへ自動で切り替えることはありません。
+
 ### Ollama
 
 組み込みの `local-vision` は画像対応モデル `qwen3.5:9b` を指定します。
