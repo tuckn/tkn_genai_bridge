@@ -15,7 +15,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
-from ..errors import GenAIError, ProviderError
+from ..errors import GenAIError, ProcessDiagnostics, ProviderError
 from ..images import IMAGE_SUFFIXES, validate_image_provider
 from ..models import CLI_EXECUTABLES, GenerationRequest, Profile, ResponseMetadata, TokenCounts, Usage
 from ..usage import summarize_usage
@@ -140,7 +140,7 @@ def schema_prompt(request: GenerationRequest) -> str:
     )
 
 
-def _stop_process(process: subprocess.Popen[str]) -> str | None:
+def _stop_process(process: subprocess.Popen[str]) -> tuple[str | None, str | None]:
     if sys.platform == "win32":
         # Limit cleanup to this invocation's process tree, never to executable names.
         try:
@@ -160,18 +160,46 @@ def _stop_process(process: subprocess.Popen[str]) -> str | None:
     if process.poll() is None:
         process.kill()
     try:
-        stdout, _stderr = process.communicate(timeout=5)
-        return stdout
+        return process.communicate(timeout=5)
     except subprocess.TimeoutExpired as exc:
         # Do not wait indefinitely for inherited pipes held by an escaped child.
         for pipe in (process.stdin, process.stdout, process.stderr):
             if pipe is not None:
                 pipe.close()
-        return _stdout_text(exc.output)
+        return _stdout_text(exc.output), _stdout_text(exc.stderr)
 
 
 def _stdout_text(value: str | bytes | None) -> str | None:
     return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+
+
+def process_diagnostics(
+    exit_code: int | None, stderr: str, stdout: str, provider: str | None
+) -> ProcessDiagnostics:
+    # stdout may contain generated text. Retain only explicit Codex error events.
+    errors = []
+    if provider == "codex":
+        for line in stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and event.get("type") in {"error", "turn.failed"}:
+                errors.append(
+                    json.dumps(
+                        {key: event[key] for key in ("type", "message", "error") if key in event},
+                        ensure_ascii=False,
+                    )
+                )
+    events = "\n".join(errors)
+    limit = 16384
+    return ProcessDiagnostics(
+        exit_code=exit_code,
+        stderr=stderr[-limit:],
+        stderr_truncated=len(stderr) > limit,
+        error_events=events[-limit:],
+        error_events_truncated=len(events) > limit,
+    )
 
 
 def _process_metadata(stdout: str, provider: str | None) -> ResponseMetadata | None:
@@ -207,17 +235,21 @@ def run_process(
             start_new_session=os.name != "nt",
         )
         try:
-            stdout, _stderr = process.communicate(prompt, timeout=timeout)
+            stdout, stderr = process.communicate(prompt, timeout=timeout)
         except subprocess.TimeoutExpired as exc:
             # communicate() after timeout returns the complete buffered stream; never concatenate it.
-            stopped_stdout = _stop_process(process)
-            captured = stopped_stdout if stopped_stdout is not None else _stdout_text(exc.output)
+            drained = _stop_process(process)
+            captured = drained[0] if drained and drained[0] is not None else _stdout_text(exc.output)
+            captured_stderr = drained[1] if drained and drained[1] is not None else _stdout_text(exc.stderr)
             error = ProviderError(
                 "provider timed out; submission and billing may be unknown",
                 code="timeout",
                 submission_unknown=True,
             )
             error.metadata = _process_metadata(captured or "", provider)
+            error.process_diagnostics = process_diagnostics(
+                getattr(process, "returncode", None), captured_stderr or "", captured or "", provider
+            )
             raise error from None
         except KeyboardInterrupt:
             _stop_process(process)
@@ -233,6 +265,7 @@ def run_process(
             submission_unknown=True,
         )
         error.metadata = _process_metadata(stdout, provider)
+        error.process_diagnostics = process_diagnostics(process.returncode, stderr, stdout, provider)
         raise error
     return stdout
 

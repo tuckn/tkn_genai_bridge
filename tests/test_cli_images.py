@@ -128,7 +128,7 @@ def test_claude_process_failure_keeps_stream_usage(timeout, tmp_path, monkeypatc
 
     fail_timeout = timeout
     monkeypatch.setattr(cli.subprocess, "Popen", lambda *a, **kw: Process())
-    monkeypatch.setattr(cli, "_stop_process", lambda process: output)
+    monkeypatch.setattr(cli, "_stop_process", lambda process: (output, ""))
     with pytest.raises(ProviderError) as exc:
         cli.run_process(["claude"], "", tmp_path, 1, provider="claude-code")
     assert exc.value.metadata.response_model == "observed-model"

@@ -150,7 +150,7 @@ def test_process_failure_retains_partial_cumulative_usage(tmp_path, monkeypatch,
             return result_event(), "private-stderr"
 
     monkeypatch.setattr(cli.subprocess, "Popen", lambda *args, **kwargs: Process())
-    monkeypatch.setattr(cli, "_stop_process", lambda process: result_event())
+    monkeypatch.setattr(cli, "_stop_process", lambda process: (result_event(), "private-stderr"))
     with pytest.raises(ProviderError) as exc:
         cli.run_process(["agy"], "private-input", tmp_path, 1, provider="antigravity")
     assert exc.value.code == ("timeout" if timed_out else "process_exit")

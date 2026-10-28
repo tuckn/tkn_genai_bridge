@@ -110,6 +110,36 @@ def test_process_exit_does_not_leak_stdout_stderr(tmp_path):
         )
     assert "private" not in str(exc.value)
     assert "status 3" in str(exc.value)
+    assert exc.value.process_diagnostics.exit_code == 3
+    assert exc.value.process_diagnostics.stderr.strip() == "private-key"
+    assert "private" not in repr(exc.value.process_diagnostics)
+    assert exc.value.process_diagnostics.error_events == ""
+
+
+def test_process_diagnostics_are_bounded_and_exclude_success_output():
+    stdout = "\n".join(
+        [
+            json.dumps({"type": "item.completed", "item": {"text": "private generated body"}}),
+            json.dumps({"type": "turn.failed", "error": {"message": "request rejected"}}),
+        ]
+    )
+    result = cli.process_diagnostics(7, "x" * 20000 + "error tail", stdout, "codex")
+    assert len(result.stderr) == 16384 and result.stderr.endswith("error tail")
+    assert result.stderr_truncated
+    assert "request rejected" in result.error_events
+    assert "private generated body" not in result.error_events
+    assert not result.error_events_truncated
+
+
+def test_timeout_diagnostics_retain_stderr(tmp_path):
+    script = (
+        "import sys,time; print('diagnostic before timeout', file=sys.stderr, flush=True); time.sleep(10)"
+    )
+    with pytest.raises(ProviderError) as exc:
+        cli.run_process([sys.executable, "-u", "-c", script], "", tmp_path, 1)
+    assert exc.value.code == "timeout"
+    assert "diagnostic before timeout" in exc.value.process_diagnostics.stderr
+    assert "diagnostic before timeout" not in str(exc.value)
 
 
 def test_process_timeout(tmp_path):

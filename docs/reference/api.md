@@ -171,6 +171,10 @@ Claudeの入力値を改変せず、コスト計算時にキャッシュ読込�
 | `OutputValidationError` | JSONの解析やスキーマ検証の失敗 |
 
 各例外に `code` があり、呼び出し後の失敗には `record` が付きます。
+CLIの異常終了・タイムアウトでは `process_diagnostics` に `ProcessDiagnostics` が付きます。`exit_code`、`stderr`、`stderr_truncated`、`error_events`、`error_events_truncated` を持ち、本文は各末尾16,384文字までです。`error_events` はCodexのerror/turn.failedイベントだけを含みます。プロセス起動前の失敗やHTTP経由の失敗では `None` です。
+
+診断本文は個人情報・認証情報を含み得るため、例外文字列・repr・GenerationRecord・通常ログ・補助CLIのJSONへは含めません。保存が必要な呼び出し元だけが `dataclasses.asdict(error.process_diagnostics)` を私有のローカル記録へ保存してください。Bridge自身は永続化しません。成功時のstdout全体は診断情報に残しません。
+
 `ProviderError` は次の再試行判断用情報を持ち、補助CLIの `error` JSONにも含めます。
 
 | フィールド | 契約 |

@@ -3,10 +3,26 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .models import GenerationRecord, ResponseMetadata
+
+
+@dataclass(frozen=True)
+class ProcessDiagnostics:
+    """Private bounded process output. Never included in exception text or public records.
+
+    Callers may explicitly persist this in their local diagnostic store. Output can
+    contain personal data or credentials and must not be published as ordinary logs.
+    """
+
+    exit_code: int | None
+    stderr: str = field(default="", repr=False)
+    stderr_truncated: bool = False
+    error_events: str = field(default="", repr=False)
+    error_events_truncated: bool = False
 
 
 class GenAIError(RuntimeError):
@@ -17,6 +33,7 @@ class GenAIError(RuntimeError):
         self.code = code
         self.record: GenerationRecord | None = None
         self.metadata: ResponseMetadata | None = None
+        self.process_diagnostics: ProcessDiagnostics | None = None
 
 
 class ConfigError(GenAIError):
