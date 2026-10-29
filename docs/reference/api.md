@@ -175,6 +175,13 @@ CLIの異常終了・タイムアウトでは `process_diagnostics` に `Process
 
 診断本文は個人情報・認証情報を含み得るため、例外文字列・repr・GenerationRecord・通常ログ・補助CLIのJSONへは含めません。保存が必要な呼び出し元だけが `dataclasses.asdict(error.process_diagnostics)` を私有のローカル記録へ保存してください。Bridge自身は永続化しません。成功時のstdout全体は診断情報に残しません。
 
+Copilotの引数エラーも `Runtime.generate()` が送出する同じ例外の
+`error.process_diagnostics.stderr` から取得できます。例えば `--no-remote was removed` は
+`process_exit` と終了コード1に加えてここに保持されます。テキスト・画像入力で共通です。
+通常のエラーメッセージはCLI引数・認証・モデルと私有の診断情報を確認するよう案内し、stderr自体は表示しません。
+この診断契約はBridge 0.10.1以降に含まれます。古いコミットを固定した利用側はBridge依存を更新し、
+例外を文字列に変換して捨てる前に診断を取得してください。observerには本文を含まない記録だけが渡ります。
+
 `ProviderError` は次の再試行判断用情報を持ち、補助CLIの `error` JSONにも含めます。
 
 | フィールド | 契約 |

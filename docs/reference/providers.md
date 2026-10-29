@@ -65,7 +65,7 @@ Bridge 0.10.0からGitHub Copilotにも対応し、一時保存した連番画�
 画像ありではJSONL出力を使い、成功resultと最後の完全なassistant.messageを確認します。
 途中の案内文や差分を結果に混ぜず、最後の本文だけをJSON検証します。モデルIDはそのメッセージの報告値を使用します。
 画像なしは従来の本文のみのモードを維持します。token利用量は引き続き不明です。
-Copilot CLI 1.0.89-5で添付オプションを確認しました。画像対応モデルを選択してください。
+当初はCopilot CLI 1.0.89-5で添付オプションを確認しました。現在のCLI対応方針は下記を参照し、画像対応モデルを選択してください。
 公式仕様: [Copilot CLI programmatic reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-programmatic-reference)。
 この対応表はBridgeの実装範囲であり、各製品全体の画像機能の有無を示すものではありません。
 モデルの画像対応、解像度・枚数・サイズ上限と構造化出力の組み合わせは、利用する接続先でも確認してください。
@@ -134,6 +134,30 @@ Claude CodeはBridge 0.7.1のスキーマ互換修正と再ログイン後に、
 これは確認時点の環境・認証状態での結果です。通常のpytestは模擬応答を使い、外部サービスへの生成要求やクレジット消費を行いません。
 
 公式資料: [Codex非対話実行](https://learn.chatgpt.com/docs/developer-commands#codex-exec)、[Claude Code CLI](https://code.claude.com/docs/en/cli-reference)、[GitHub Copilot CLI](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference)、[Antigravity headless mode](https://antigravity.google/docs/cli/headless/)。
+
+### GitHub Copilot CLIの対応バージョンとリモート機能
+
+Bridge 0.11.0以降のCopilotアダプターは **Copilot CLI 1.0.105以降の引数契約** を対象とします。
+旧版CLIとの互換性は保証せず、版による引数分岐や制約を緩めた再試行は行いません。
+2026年10月29日にWindowsの1.0.105で、テキスト・画像用の起動引数をそれぞれ `--help` と組み合わせ、
+モデル・推論設定あり／なしのパーサー受理を確認しました。これは生成・認証・画像認識の動作保証ではありません。
+今回の更新では業務文書も実生成も使用せず、応答処理と失敗時の情報保持はモックで確認しています。
+将来のCLI更新時も、同じ引数契約と回帰テストの確認が必要です。
+
+Copilot CLI [1.0.103の変更履歴](https://github.com/github/copilot-cli/releases/tag/v1.0.103)で
+`--remote` / `--no-remote` の廃止が明記されたため、Bridgeは `--no-remote` を渡しません。
+公式の[リモート制御仕様](https://docs.github.com/en/copilot/concepts/agent-capabilities/agent-powered-workflows-and-operations/about-remote-control#prerequisites)では
+リモート制御は対話セッション専用で、プログラムからの非対話実行では利用できません。
+Bridgeは標準入力をPIPEで渡してEOFを閉じる新規の非対話実行を使い、対話・再開・接続・ホスト用の引数を指定しません。
+このため `/remote off` をプロンプトへ混ぜたり、ユーザーの `/environments` や永続設定を変更したりする代替処理は不要です。
+
+履歴のアカウント同期はリモート制御とは別機能です。
+従来の `--no-remote-export` は現行ヘルプに記載された **`--sync-session=off`** に置き換え、
+ユーザーの同期設定に依存せず、この実行の読み取り専用履歴同期を明示的に無効にします。
+`--no-ask-user`、`--no-custom-instructions`、`--disable-builtin-mcps`、自動更新・色出力の無効化、
+shell/write/read/url/memoryの拒否と `shell=False` はテキスト・画像の両方で維持します。
+これはすべての外部通信・CLI自身のローカル保存を禁止するものではありません。
+CLIが認証・生成に使う通信と、ユーザー設定由来のMCP・拡張に関する上記の制限事項は変わりません。
 
 ### Claude Codeのログインと動作確認
 

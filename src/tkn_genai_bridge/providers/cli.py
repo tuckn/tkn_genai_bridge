@@ -260,7 +260,8 @@ def run_process(
         ) from None
     if process.returncode:
         error = ProviderError(
-            f"provider exited with status {process.returncode}; check its login and model",
+            f"provider exited with status {process.returncode}; check CLI arguments, login and model; "
+            "inspect process_diagnostics securely",
             code="process_exit",
             submission_unknown=True,
         )
@@ -602,8 +603,7 @@ class CliBackend:
                     "--no-auto-update",
                     "--no-custom-instructions",
                     "--disable-builtin-mcps",
-                    "--no-remote",
-                    "--no-remote-export",
+                    "--sync-session=off",
                     "--deny-tool=shell",
                     "--deny-tool=write",
                     "--deny-tool=read",

@@ -220,7 +220,7 @@ def test_copilot_attachments_preserve_bytes_order_and_cleanup(outcome, request_o
         assert [p.name for p in paths] == ["image-0001.jpg", "image-0002.webp", "image-0003.jpg"]
         assert all(p.is_absolute() and p.parent == cwd for p in paths)
         assert "--deny-tool=read" in command and "--deny-tool=shell" in command
-        assert "--no-ask-user" in command and "--no-remote-export" in command
+        assert "--no-ask-user" in command and "--sync-session=off" in command
         assert request.prompt in prompt and "Return only one JSON object" in prompt
         assert request.prompt not in command
         assert command[command.index("--output-format") + 1] == "json"

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tkn_genai_bridge import CliSettings, Profile, ProviderError, Runtime
+from tkn_genai_bridge import CliSettings, ImageInput, Profile, ProviderError, Runtime
 from tkn_genai_bridge.providers import cli
 
 
@@ -67,6 +67,114 @@ def test_codex_missing_output_is_failure(request_object, monkeypatch):
     monkeypatch.setattr(cli, "run_process", lambda *args, **kwargs: "")
     with pytest.raises(ProviderError, match="output file"):
         Runtime(Profile(cli=CliSettings(executable=sys.executable))).generate(request_object)
+
+
+@pytest.mark.parametrize("with_images", [False, True])
+@pytest.mark.parametrize("selected_model", [False, True])
+def test_copilot_current_cli_command(with_images, selected_model, request_object, monkeypatch):
+    images = [ImageInput(data=b"\xff\xd8\xffsynthetic", media_type="image/jpeg")] if with_images else []
+    request = request_object.model_copy(update={"images": images})
+    calls = []
+
+    def run(command, prompt, cwd, timeout, **kwargs):
+        calls.append(cwd)
+        expected = [
+            cli.resolve_executable(profile),
+            "-s",
+            "--no-ask-user",
+            "--no-color",
+            "--no-auto-update",
+            "--no-custom-instructions",
+            "--disable-builtin-mcps",
+            "--sync-session=off",
+            "--deny-tool=shell",
+            "--deny-tool=write",
+            "--deny-tool=read",
+            "--deny-tool=url",
+            "--deny-tool=memory",
+        ]
+        if with_images:
+            path = cwd / "image-0001.jpg"
+            assert path.read_bytes() == images[0].data
+            expected += ["--output-format", "json", "--attachment", str(path)]
+        if selected_model:
+            expected += ["--model", "selected", "--effort", "low"]
+        assert command == expected
+        assert prompt == cli.schema_prompt(request)
+        assert kwargs == {"provider": "github-copilot"}
+        assert cwd != Path.cwd()
+        assert timeout == 17
+        if with_images:
+            return (
+                '{"type":"assistant.message","data":{"content":"{\\"summary\\":\\"ok\\"}"}}\n'
+                '{"type":"result","exitCode":0}\n'
+            )
+        return '{"summary":"ok"}'
+
+    monkeypatch.setattr(cli, "run_process", run)
+    profile = Profile(
+        provider="github-copilot",
+        model="selected" if selected_model else None,
+        reasoning_effort="low" if selected_model else None,
+        cli=CliSettings(executable=sys.executable),
+        timeout_seconds=17,
+    )
+    assert Runtime(profile).generate(request).data == {"summary": "ok"}
+    assert len(calls) == 1
+    assert not calls[0].exists()
+
+
+@pytest.mark.parametrize("with_images", [False, True])
+def test_copilot_argument_failure_preserves_private_diagnostics(
+    with_images, request_object, monkeypatch, caplog
+):
+    stderr = (
+        "error: --no-remote was removed. Use /remote off in a session; "
+        "manage incoming connections in /environments.\n"
+    )
+    images = [ImageInput(data=b"\xff\xd8\xffsynthetic", media_type="image/jpeg")] if with_images else []
+    request = request_object.model_copy(update={"images": images})
+    calls = []
+    records = []
+
+    class Process:
+        returncode = 1
+
+        def communicate(self, prompt, timeout):
+            assert prompt == cli.schema_prompt(request)
+            return "private generated body", stderr
+
+    def popen(command, **kwargs):
+        calls.append(command)
+        assert kwargs["shell"] is False
+        assert kwargs["stdin"] == cli.subprocess.PIPE
+        assert kwargs["stdout"] == cli.subprocess.PIPE
+        assert kwargs["stderr"] == cli.subprocess.PIPE
+        return Process()
+
+    monkeypatch.setattr(cli.subprocess, "Popen", popen)
+    runtime = Runtime(
+        Profile(provider="github-copilot", cli=CliSettings(executable=sys.executable)),
+        observer=records.append,
+    )
+    with pytest.raises(ProviderError) as exc:
+        runtime.generate(request)
+    error = exc.value
+    assert error.code == "process_exit"
+    assert error.process_diagnostics.exit_code == 1
+    assert error.process_diagnostics.stderr == stderr
+    assert not error.process_diagnostics.stderr_truncated
+    assert error.process_diagnostics.error_events == ""
+    assert "CLI arguments" in str(error) and "process_diagnostics" in str(error)
+    assert len(calls) == 1
+    assert records == [error.record]
+    assert error.record.status == "failed"
+    assert len(error.record.images) == len(images)
+    public = str(error) + repr(error) + repr(error.process_diagnostics) + caplog.text
+    public += error.record.model_dump_json()
+    assert stderr.strip() not in public
+    assert "private generated body" not in public
+    assert request.prompt not in public
 
 
 @pytest.mark.parametrize(
