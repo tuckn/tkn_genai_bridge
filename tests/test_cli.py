@@ -7,18 +7,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from tkn_genai_bridge.cli import config_lines, main
+from tkn_genai_bridge.cli import main
 from tkn_genai_bridge.config import config_template
+from tkn_genai_bridge.output import result_lines
 
 
 def test_config_init_and_list_json_are_read_only(tmp_path, capsys):
     target = tmp_path / "shared/config.yaml"
-    assert main(["config", "init", "--path", str(target), "--dry-run"]) == 0
+    assert main(["--json", "config", "init", "--path", str(target), "--dry-run"]) == 0
     output = capsys.readouterr()
     assert json.loads(output.out)["status"] == "would_create"
     assert "[SUCCESS]" in output.err
     assert not target.parent.exists()
-    assert main(["config", "init", "--path", str(target)]) == 0
+    assert main(["--json", "config", "init", "--path", str(target)]) == 0
     capsys.readouterr()
     original = target.read_bytes()
     assert main(["config", "list", "--json", "--config", str(target), "--model", "overridden"]) == 0
@@ -46,6 +47,7 @@ def test_dry_run_does_not_call_api_or_create_files(tmp_path, capsys, monkeypatch
         main(
             [
                 "generate",
+                "--json",
                 "--config",
                 str(config),
                 "--prompt-file",
@@ -68,7 +70,7 @@ def test_dry_run_does_not_call_api_or_create_files(tmp_path, capsys, monkeypatch
 def test_expected_error_is_json_without_traceback(tmp_path, capsys):
     config = tmp_path / "config.yaml"
     config.write_text(config_template() + "\nsecret_key: PRIVATE\n", encoding="utf-8")
-    assert main(["config", "list", "--config", str(config)]) == 2
+    assert main(["--json", "config", "list", "--config", str(config)]) == 2
     output = capsys.readouterr()
     assert json.loads(output.out)["error"]["code"] == "invalid_config"
     assert "PRIVATE" not in output.out + output.err
@@ -76,7 +78,7 @@ def test_expected_error_is_json_without_traceback(tmp_path, capsys):
 
 
 def test_unknown_profile_override_cannot_create_profile(capsys):
-    assert main(["config", "list", "--profile", "typo", "--model", "value"]) == 2
+    assert main(["--json", "config", "list", "--profile", "typo", "--model", "value"]) == 2
     assert json.loads(capsys.readouterr().out)["error"]["code"] == "unknown_profile"
 
 
@@ -84,16 +86,16 @@ def test_invalid_schema_file_is_an_input_error(tmp_path, capsys):
     prompt, schema = tmp_path / "prompt.txt", tmp_path / "schema.json"
     prompt.write_text("synthetic", encoding="utf-8")
     schema.write_text("PRIVATE invalid JSON", encoding="utf-8")
-    assert main(["generate", "--prompt-file", str(prompt), "--schema-file", str(schema), "--dry-run"]) == 1
+    args = ["--json", "generate", "--prompt-file", str(prompt), "--schema-file", str(schema), "--dry-run"]
+    assert main(args) == 1
     output = capsys.readouterr()
     assert json.loads(output.out)["error"]["code"] == "invalid_schema"
     assert "PRIVATE" not in output.out + output.err
 
 
 def test_quiet_verbose_are_exclusive(capsys):
-    with pytest.raises(SystemExit) as exc:
-        main(["-q", "-v", "config", "list"])
-    assert exc.value.code == 2
+    assert main(["-q", "-v", "config", "list"]) == 2
+    assert "error.code=argument_error" in capsys.readouterr().out
 
 
 def test_real_entrypoint_with_loopback_fixture(tmp_path):
@@ -160,6 +162,7 @@ def test_real_entrypoint_with_loopback_fixture(tmp_path):
                 "-m",
                 "tkn_genai_bridge",
                 "generate",
+                "--json",
                 "--config",
                 str(config),
                 "--prompt-file",
@@ -190,7 +193,7 @@ def test_real_entrypoint_with_loopback_fixture(tmp_path):
 
 
 def test_config_lines_preserve_paths_types_and_single_line_strings():
-    assert config_lines(
+    assert list(result_lines(
         {
             "path": r"C:\Users\ExampleUser\path with spaces\codex.exe",
             "items": [{"active": True}, False, None, 3, 1.5],
@@ -199,7 +202,7 @@ def test_config_lines_preserve_paths_types_and_single_line_strings():
             "text": "日本語=値\r\n\t\x00\x1b\x7f",
             "blank": "",
         }
-    ) == [
+    )) == [
         r"path=C:\Users\ExampleUser\path with spaces\codex.exe",
         "items[0].active=true",
         "items[1]=false",
@@ -324,7 +327,5 @@ def test_config_list_help_and_removed_show(capsys):
     assert exc.value.code == 0
     help_output = capsys.readouterr().out
     assert "--json" in help_output and "--profile" in help_output
-    with pytest.raises(SystemExit) as exc:
-        main(["config", "show"])
-    assert exc.value.code == 2
+    assert main(["config", "show"]) == 2
     assert "invalid choice" in capsys.readouterr().err

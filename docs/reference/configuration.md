@@ -50,7 +50,8 @@ field_sources.profiles.codex-default.model=built-in
 構造化した結果が必要な場合は `tkn-genai-bridge config list --json` を使います。
 JSONの構造は `settings`、`user_config_path`、`sources`、`field_sources` です。
 どちらの形式でも設定ファイル・state・cache・reportを作成・更新せず、認証・通信・外部CLI起動を行いません。
-確認ログはINFOレベルで標準エラーへ出力し、`--quiet` をコマンドの前に付けると抑制できます。
+確認ログはINFOレベルで標準エラーへ出力し、`--quiet` をコマンドの前後に付けると抑制できます。
+設定作成・失敗時にも共通の [CLI出力仕様](cli-output.md) を適用します。
 APIキーの環境変数名は表示しますが、環境変数の値を取得・表示しません。
 設定内容を表示する操作なので、接続先や実行ファイルのパスを第三者に共有する際は利用者が確認してください。
 

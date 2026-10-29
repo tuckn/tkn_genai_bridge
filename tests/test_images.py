@@ -250,6 +250,7 @@ def test_cli_repeated_images_and_dry_run_no_writes(tmp_path, capsys, monkeypatch
     source = tmp_path / "private image.png"
     source.write_bytes(PNG)
     args = [
+        "--json",
         "generate",
         "--config",
         str(config),
@@ -281,4 +282,5 @@ def test_cli_repeated_images_and_dry_run_no_writes(tmp_path, capsys, monkeypatch
     assert main(args) == 1
     error = capsys.readouterr()
     assert json.loads(error.out)["error"]["code"] == "image_io"
-    assert "private" not in error.out + error.err
+    assert json.loads(error.out)["error"]["paths"]["image"] == str(source)
+    assert "private" not in error.err

@@ -227,6 +227,7 @@ def test_example_profile_and_cli_dry_run(tmp_path, capsys, monkeypatch):
     assert (
         main(
             [
+                "--json",
                 "generate",
                 "--config",
                 str(config),

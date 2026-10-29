@@ -131,7 +131,7 @@ tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-f
 dry-run は通信、認証、生成AIの呼び出し、ファイル作成を行いません。
 設定確認と dry-run では LiteLLM SDK も読み込みません。
 認証状態やモデルの利用可否、サーバー側のスキーマ対応は、本実行で確認されます。
-`will_call_provider: false` と終了コード `0` が入力検証成功の目印です。
+`will_call_provider=false` と終了コード `0` が入力検証成功の目印です。
 
 **次の通常実行はプロンプトとスキーマを接続先へ送り、API料金やサービスの利用枠を消費する場合があります。**
 `--dry-run` を外して実行します。
@@ -140,7 +140,8 @@ dry-run は通信、認証、生成AIの呼び出し、ファイル作成を行�
 tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/prompt.txt --schema-file examples/output.schema.json
 ```
 
-標準出力の JSON の `data` に検証済みの結果、`record` に実行情報が入ります。
+標準出力は1行1項目の `key=value` 一覧です。`data` 配下に検証済みの結果、`record` 配下に実行情報が入ります。
+例えば `record.status=succeeded` が生成成功の目印です。機械処理には `--json` を明示してください。
 標準エラーには進捗と `[SUCCESS]` を表示します。
 生成結果は自動保存しません。保存先と上書きの判断は呼び出し元が担当します。
 
@@ -252,21 +253,56 @@ Azureではモデル名の代わりにデプロイ名をキーにします。単
 
 ## コマンド一覧
 
-共通の `--quiet` / `--verbose` はコマンドの前に指定し、同時には使えません。
+共通の `--json` / `--quiet` / `--verbose` はコマンドの前後に指定できます。
+`config --json list` のような多段サブコマンド間の指定も有効です。
+`--quiet` と `--verbose` は同時には使えません。ログ量だけを制御し、最終結果は常に表示します。
 各コマンドの設定オプションはコマンドの後に指定します。
 
 | 目的                 | コマンド                                                            | 結果・副作用                           |
 | -------------------- | ------------------------------------------------------------------- | -------------------------------------- |
 | 設定の作成           | `tkn-genai-bridge config init [--path PATH] [--dry-run]`          | 通常は設定ファイルを新規作成           |
 | 設定元と最終値の確認 | `tkn-genai-bridge config list [--config PATH] [--profile NAME] [--json]`   | 読み取りのみ。認証情報の値は解決しない |
-| 生成                 | `tkn-genai-bridge generate --prompt-file PATH --schema-file PATH` | 接続先へ送信し、JSON を表示            |
+| 生成                 | `tkn-genai-bridge generate --prompt-file PATH --schema-file PATH` | 接続先へ送信し、結果と実行情報を表示            |
 | 生成前の確認         | 上記に`--dry-run` を追加                                          | 通信・認証・書き込みなし               |
 | バージョン確認       | `tkn-genai-bridge --version`                                      | インストール済みの版を表示             |
 
 dry-run専用の `--estimate-input-tokens` / `--estimate-output-tokens` は0以上の整数です。
 `--estimate-input-method` は入力推定値と併用し、その推定方法名を記録できます。
 設定確認と生成には `--profile`、`--model`、`--reasoning-effort`、`--timeout-seconds`、`--no-project-config` も使えます。
-引数エラーは終了コード `2`、生成失敗は非 `0`、正常終了は `0` です。
+正常終了は `0`、生成・実行失敗は `1`、引数・設定・入力モデル検証エラーは `2`、中断は `130` です。
+スキーマファイルのJSON不正など、`RequestError` に該当する要求エラーは `1` です。
+
+### 結果を機械処理に渡す
+
+`generate`、`generate --dry-run`、`config init`、`config list` とエラー時の結果は、既定で `key=value` 一覧です。
+機械処理用のJSONは `--json` で選びます。パイプやリダイレクトで形式が変わることはありません。
+
+```shell
+tkn-genai-bridge config init --dry-run --json
+tkn-genai-bridge --json generate --no-project-config --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
+```
+
+Pythonから結果を解析する場合も、`--json` を明示し、終了コードを確認します。
+次の例はリポジトリ直下で実行し、生成AIを呼び出さずに計画を取得します。
+
+```python
+import json
+import subprocess
+
+completed = subprocess.run(
+    ["tkn-genai-bridge", "--json", "generate", "--no-project-config",
+     "--prompt-file", "examples/prompt.txt", "--schema-file", "examples/output.schema.json",
+     "--dry-run"],
+    capture_output=True, text=True, encoding="utf-8", check=False,
+)
+result = json.loads(completed.stdout)
+if completed.returncode:
+    raise RuntimeError(result["error"]["code"])
+assert result["will_call_provider"] is False
+```
+
+通常表示もJSONも全項目を返し、省略・切り詰めは行いません。`--full-output` は設けていません。
+出力のキー・型、エラー対象パス、終了コードは [CLI出力仕様](docs/reference/cli-output.md) を参照してください。
 
 ## 対応範囲と注意点
 
@@ -340,6 +376,7 @@ uv build
 ## 関連資料
 
 - [設定仕様と接続プロファイル例](docs/reference/configuration.md)
+- [CLI出力・終了コード](docs/reference/cli-output.md)
 - [Python API・失敗時の扱い](docs/reference/api.md)
 - [VLMの対応と比較](docs/reference/vision.md)
 - [token・コスト概算と単価設定](docs/reference/costs.md)

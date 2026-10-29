@@ -127,7 +127,10 @@ def test_cli_json_exposes_safe_retry_metadata(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(Runtime, "generate", fail)
     assert (
         main(
-            ["generate", "--config", str(config), "--prompt-file", str(prompt), "--schema-file", str(schema)]
+            [
+                "--json", "generate", "--config", str(config),
+                "--prompt-file", str(prompt), "--schema-file", str(schema),
+            ]
         )
         == 1
     )

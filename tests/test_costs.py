@@ -378,7 +378,10 @@ def test_cli_estimate_and_list_are_read_only_json(tmp_path, capsys):
     prompt, schema = tmp_path / "prompt.txt", tmp_path / "schema.json"
     prompt.write_text("PRIVATE prompt", encoding="utf-8")
     schema.write_text('{"type":"object"}', encoding="utf-8")
-    args = ["generate", "--config", str(path), "--prompt-file", str(prompt), "--schema-file", str(schema)]
+    args = [
+        "--json", "generate", "--config", str(path),
+        "--prompt-file", str(prompt), "--schema-file", str(schema),
+    ]
     before = {p: p.read_bytes() for p in tmp_path.iterdir()}
     assert main([*args, "--dry-run", "--estimate-output-tokens", "20"]) == 0
     output = capsys.readouterr()
@@ -392,9 +395,8 @@ def test_cli_estimate_and_list_are_read_only_json(tmp_path, capsys):
     )
     assert before == {p: p.read_bytes() for p in tmp_path.iterdir()}
     for tail in (["--estimate-output-tokens", "20"], ["--dry-run", "--estimate-output-tokens", "-1"]):
-        with pytest.raises(SystemExit) as exc:
-            main([*args, *tail])
-        assert exc.value.code == 2
+        assert main([*args, *tail]) == 2
+        assert json.loads(capsys.readouterr().out)["error"]["code"] == "argument_error"
 
 
 def test_fresh_plan_does_not_import_sdk_or_tokenizer(tmp_path):

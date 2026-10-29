@@ -72,7 +72,10 @@ def test_cli_input_estimate_and_method_are_dry_run_only(tmp_path, capsys):
     prompt, schema = tmp_path / "prompt.txt", tmp_path / "schema.json"
     prompt.write_text("synthetic", encoding="utf-8")
     schema.write_text('{"type":"object"}', encoding="utf-8")
-    args = ["generate", "--config", str(config), "--prompt-file", str(prompt), "--schema-file", str(schema)]
+    args = [
+        "--json", "generate", "--config", str(config),
+        "--prompt-file", str(prompt), "--schema-file", str(schema),
+    ]
     before = {p: p.read_bytes() for p in tmp_path.iterdir()}
     assert (
         main([*args, "--dry-run", "--estimate-input-tokens", "42", "--estimate-input-method", "custom-v1"])
@@ -86,6 +89,5 @@ def test_cli_input_estimate_and_method_are_dry_run_only(tmp_path, capsys):
         ["--dry-run", "--estimate-input-method", "custom"],
         ["--dry-run", "--estimate-input-tokens", "-1"],
     ):
-        with pytest.raises(SystemExit) as exc:
-            main([*args, *options])
-        assert exc.value.code == 2
+        assert main([*args, *options]) == 2
+        assert json.loads(capsys.readouterr().out)["error"]["code"] == "argument_error"
