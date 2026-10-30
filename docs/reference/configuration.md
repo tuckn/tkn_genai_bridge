@@ -90,6 +90,9 @@ APIキーの環境変数名は表示しますが、環境変数の値を取得�
 設定した名前を実際のモデル名として代用しません。
 
 推論設定の許容値は次のとおりです。
+CLIでは `--reasoning-effort high`、Pythonでは `load_profile("codex-default", overrides={"reasoning_effort": "high"})` で、その呼び出しだけ上書きできます。
+要求した値は `GenerationPlan.reasoning_effort` と `GenerationResult.record.reasoning_effort`（生成失敗時は `GenAIError.record.reasoning_effort`）にも返します。
+未指定は `null` であり、接続先が実際に採用したEffort levelの報告ではありません。
 ここにある値でも、選択したモデルが対応しない場合は接続先で失敗します。
 
 | 接続先 | `reasoning_effort` |

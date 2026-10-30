@@ -330,6 +330,8 @@ class ResponseMetadata(StrictModel):
 
 
 class GenerationRecord(ResponseMetadata):
+    # Requested setting; provider defaults and actual execution are not inferred.
+    reasoning_effort: str | None = None
     images: list[ImageMetadata] = Field(default_factory=list)
     input_sha256: str | None = None
     cost_estimate: CostEstimate | None = None
@@ -352,6 +354,7 @@ class GenerationResult(StrictModel):
 
 
 class GenerationPlan(StrictModel):
+    reasoning_effort: str | None = None
     images: list[ImageMetadata] = Field(default_factory=list)
     input_sha256: str | None = None
     token_estimate: TokenEstimate | None = None

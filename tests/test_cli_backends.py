@@ -9,7 +9,8 @@ from tkn_genai_bridge.providers import cli
 
 
 @pytest.mark.parametrize("provider", ["codex", "claude-code", "github-copilot"])
-def test_commands_stdin_and_private_directory(provider, request_object, monkeypatch):
+@pytest.mark.parametrize("effort", [None, "low", "high"])
+def test_commands_stdin_and_private_directory(provider, effort, request_object, monkeypatch):
     captures = []
 
     def run(command, prompt, cwd, timeout, **kwargs):
@@ -42,18 +43,26 @@ def test_commands_stdin_and_private_directory(provider, request_object, monkeypa
     profile = Profile(
         provider=provider,
         model="selected",
-        reasoning_effort="low",
+        reasoning_effort=effort,
         cli=CliSettings(executable=sys.executable),
         timeout_seconds=17,
     )
     result = Runtime(profile).generate(request_object)
     assert result.data == {"summary": "日本語"}
+    assert result.record.reasoning_effort == effort
     assert len(captures) == 1
     command, prompt, cwd, timeout = captures[0]
     assert command[command.index("--model") + 1] == "selected"
     assert request_object.prompt in prompt
     assert not cwd.exists()
     assert timeout == 17
+    if provider == "codex":
+        settings = [command[i + 1] for i, item in enumerate(command) if item == "-c"]
+        assert settings == ([f"model_reasoning_effort={json.dumps(effort)}"] if effort else [])
+    elif effort:
+        assert command[command.index("--effort") + 1] == effort
+    else:
+        assert "--effort" not in command
     if provider == "codex":
         assert "--ephemeral" in command and "--ignore-user-config" in command
         assert result.record.usage.input_tokens == 10

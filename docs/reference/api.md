@@ -100,6 +100,7 @@ API接続は画像をbase64化して要求内に含め、外部URLから取得�
 | --- | --- |
 | `provider` | 接続先の識別子 |
 | `requested_model` | 設定したモデル名。Azureではデプロイ名 |
+| `reasoning_effort` | 要求したEffort level。未指定・旧記録は `null`。接続先の実際の採用値ではない |
 | `response_model` | 応答に含まれるモデル名。未取得は `null` |
 | `usage` | token総量、入力の集計範囲、`completeness`、`known_subtotal` |
 | `cost_estimate` | 参考額・通貨・基準日付き単価・計算に使ったusage。旧記録の未記載は `null` |
@@ -115,7 +116,10 @@ API接続は画像をbase64化して要求内に含め、外部URLから取得�
 | `profile_name` | 選択した設定プロファイル名。直接構築して名前未指定なら `null` |
 | `generation_settings_sha256` | 認証情報を除いた生成条件のSHA-256 |
 
-この3項目は `GenerationPlan` にも含まれます。
+`bridge_version`、`profile_name`、`generation_settings_sha256` と `reasoning_effort` は `GenerationPlan` にも含まれます。
+`reasoning_effort` は成功記録と、`GenAIError.record` の生成失敗記録で同じ設定値を保持します。
+`load_profile(..., overrides={"reasoning_effort": "high"})` または `Profile(reasoning_effort="high")` で指定できます。
+未指定時に接続先の既定値を補完しません。Ollama専用の `ollama.think` はこの値へ変換しません。
 `load_profile()` / `load_config().profile()` で得た `Profile.profile_name` は、設定の上書き後も保持します。
 名前は設定項目には追加されず、プロファイルの `model_dump()` には含めません。
 直接作成したプロファイルでは `Runtime(profile, profile_name="app-profile")` で任意の識別名を指定できます。

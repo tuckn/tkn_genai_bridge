@@ -118,6 +118,7 @@ class Runtime:
             basis="planned",
         )
         return GenerationPlan(
+            reasoning_effort=self.profile.reasoning_effort,
             images=images,
             input_sha256=input_fingerprint(request.prompt, images),
             token_estimate=tokens,
@@ -166,6 +167,7 @@ class Runtime:
         metadata = response if response is not None else error.metadata if error else None
         usage = metadata.usage if metadata else Usage()
         record = GenerationRecord(
+            reasoning_effort=self.profile.reasoning_effort,
             images=images,
             input_sha256=input_fingerprint(request.prompt, images),
             cost_estimate=profile_cost(

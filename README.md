@@ -204,6 +204,30 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 実用のプロンプトとスキーマは利用側パッケージのリソースに置いてください。
 実行できるサンプルは [examples/use_runtime.py](examples/use_runtime.py)、例外と結果の契約は [Python API](docs/reference/api.md) にあります。
 
+### Effort level（推論設定）を指定する
+
+CLIでは `--reasoning-effort`、Pythonではプロファイルの `reasoning_effort` に指定します。
+以下は `high` を指定する例です。接続先とモデルが対応する値を使ってください。
+
+```shell
+tkn-genai-bridge generate --profile codex-default --reasoning-effort high --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --json
+```
+
+```python
+profile = load_profile("codex-default", overrides={"reasoning_effort": "high"})
+with Runtime(profile) as runtime:
+    plan = runtime.plan(request)
+    result = runtime.generate(request)
+print(plan.reasoning_effort)           # high
+print(result.record.reasoning_effort)  # high
+```
+
+共有設定の `profiles.<name>.reasoning_effort` で継続的に指定することもできます。
+CLIのオプション・Pythonの `overrides` は、その呼び出しだけ設定を上書きします。
+成功・生成失敗の実行記録とdry-run結果には、要求したEffort levelを `reasoning_effort` として返します。
+未指定は `null` で、接続先が実際に採用した値を推測・確認するものではありません。
+Ollamaは `reasoning_effort` に対応せず、専用の `ollama.think` を使います。
+
 ### 画像を添付する
 
 Python APIでは `GenerationRequest.images` に `ImageInput.from_file()` で読み込んだ画像を渡します。

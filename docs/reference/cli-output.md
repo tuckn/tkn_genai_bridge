@@ -45,6 +45,8 @@ JSONの型・キーを機械処理用の契約とします。通常一覧は同�
 | 取得済み失敗記録 | `record: object`。`status: failed`、`error_code` と取得済みのモデル・利用量を保持 |
 
 詳細なplan・recordのフィールドは [Python API](api.md)、設定の構造は [設定仕様](configuration.md) を参照してください。
+要求したEffort levelはdry-runの `reasoning_effort`、生成成功・失敗時の `record.reasoning_effort` に含まれます。
+`--reasoning-effort high` なら `high`、未指定なら `null` です。接続先の既定値や実際の採用値は推測しません。
 取得できなかった利用量やモデルは推測しません。診断本文、認証情報、入力プロンプトを失敗結果へ追加しません。
 生成した `data` は利用者が要求した内容です。結果を共有する場合はその内容を確認してください。
 

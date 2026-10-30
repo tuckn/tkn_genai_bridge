@@ -39,6 +39,7 @@ def test_profile_selection_and_overrides_flow_into_plan_and_result(tmp_path, req
         record = runtime.generate(request_object).record
     assert plan.bridge_version == record.bridge_version == __version__
     assert plan.profile_name == record.profile_name == "selected"
+    assert plan.reasoning_effort == record.reasoning_effort == "high"
     assert plan.generation_settings_sha256 == record.generation_settings_sha256
     assert len(record.generation_settings_sha256) == 64
 
@@ -128,13 +129,17 @@ def test_failure_and_legacy_record_provenance(request_object):
         def generate(self, profile, request):
             raise ProviderError("synthetic")
 
-    with Runtime(Profile(), backend=Failure(), profile_name="manual") as runtime:
+    with Runtime(Profile(reasoning_effort="high"), backend=Failure(), profile_name="manual") as runtime:
         plan = runtime.plan(request_object)
         with pytest.raises(ProviderError) as exc:
             runtime.generate(request_object)
     record = exc.value.record
     assert record.profile_name == "manual"
+    assert record.reasoning_effort == "high"
     assert record.generation_settings_sha256 == plan.generation_settings_sha256
-    legacy = record.model_dump(exclude={"bridge_version", "profile_name", "generation_settings_sha256"})
+    legacy = record.model_dump(
+        exclude={"bridge_version", "profile_name", "generation_settings_sha256", "reasoning_effort"}
+    )
     old = GenerationRecord.model_validate(legacy)
     assert old.bridge_version is None and old.generation_settings_sha256 is None
+    assert old.reasoning_effort is None

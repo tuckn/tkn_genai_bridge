@@ -2,6 +2,8 @@
 
 ## 0.11.0 — 未リリース
 
+- 要求したEffort levelを `GenerationPlan.reasoning_effort` と成功・生成失敗の `GenerationRecord.reasoning_effort` に追加。CLIの通常表示とJSON、Python APIで取得できます。未指定・旧記録は `null` とし、接続先の実際の採用値を推測しません。既存の `--reasoning-effort` / `load_profile(..., overrides={...})` による指定方法をREADMEと参照仕様へ追加し、設定の上書き・接続先への引き渡し・戻り値を回帰テストで確認します。
+
 - Copilot CLI 1.0.105の引数契約に対応。1.0.103で廃止された `--no-remote` を除去し、非対話実行ではリモート制御が利用できない公式仕様に基づき代替操作は追加しません。履歴同期の抑止は `--no-remote-export` から現行の `--sync-session=off` へ置換。旧CLIの互換保証・版分岐・再試行は追加しません。
 - Copilotのテキスト・画像入力で既存の非対話・ツール拒否・カスタム指示／組み込みMCP制御・シェルなし起動を維持。コマンド全体と、引数エラーのstderrが公開ログへ漏れずPython APIへ引き継がれる回帰テストを追加。CLI異常終了の案内に引数互換性と私有の `process_diagnostics` の確認を追加。実CLIの確認は `--help` のみで、実生成は行っていません。
 - 利用側で古いBridgeコミットを固定している場合は、この修正を含むコミットへ依存を更新してください。Python APIの `ProviderError.process_diagnostics.stderr` でCLIの具体的なエラーを取得できます。診断本文の無条件ログ出力は行わず、必要な呼び出し元だけが私有ローカル記録へ保存します。設定スキーマ・依存パッケージ版は変更しません。

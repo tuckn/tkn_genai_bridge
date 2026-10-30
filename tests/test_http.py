@@ -45,6 +45,7 @@ def test_azure_payload_key_and_usage(request_object, monkeypatch):
     assert sent["model"] == "deployment"
     assert sent["store"] is False and sent["stream"] is False
     assert sent["max_completion_tokens"] == 42
+    assert sent["reasoning_effort"] == result.record.reasoning_effort == "low"
     assert sent["response_format"]["json_schema"]["schema"] == request_object.output_schema
     assert requests[0].headers["api-key"] == "private-test-key"
     assert result.record.response_model == "actual-model"
