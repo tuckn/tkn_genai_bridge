@@ -58,7 +58,7 @@ Bridge 0.9.0からClaude Code・Antigravityにも対応します。
 Claude Codeは `--input-format stream-json --output-format stream-json --verbose` で、テキストとbase64画像ブロックを標準入力へ渡します。
 画像なしの場合は従来のJSON出力を使用します。画像ありでは最終resultの構造化出力・モデル・累計利用量を読み取ります。
 Antigravityのheadless入力はtextのみのため、一時画像の絶対パスを指示し、`--add-dir` で一時フォルダを指定します。
-全画像の `view_file` 完了イベントを確認できない場合は `image_read_failed` として停止します。元ファイル名は渡しません。
+全画像の `view_file`（`AbsolutePath`）または `read_file`（`Path`）の完了イベントを確認できない場合は `image_read_failed` として停止します。元ファイル名は渡しません。
 専用一時フォルダは成功・失敗後に削除しますが、CLI側の履歴等の保持は各サービスの仕様に従います。
 Bridge 0.10.0からGitHub Copilotにも対応し、一時保存した連番画像を `--attachment` で指定順に渡します。
 非対話モードの標準入力・JSON Schema指示と既存のツール制限を維持します。
@@ -76,7 +76,7 @@ Bridge 0.10.0からGitHub Copilotにも対応し、一時保存した連番画�
 Claudeの[Streaming Input](https://code.claude.com/docs/en/agent-sdk/streaming-vs-single-mode)、
 Antigravityの[headless入力](https://www.antigravity.google/docs/cli/headless/)も参照。
 2026年9月27日にCodex・Claude Code・GitHub Copilot・AntigravityのCLIと、Ollamaの`local-vision`でJPEG写真・PNG画面の実認識を確認。
-認識精度の評価は本リポジトリの対象外です。個人のサンプル画像・応答・参考情報は自動テストや公開資料へ含めません。
+Bridgeは認識内容の正しさを保証しません。2画像による探索的な[比較結果](vision.md#results)を別途記録しています。個人の全応答・正解メモはローカルに保持し、自動テストや公開資料へ含めません。
 
 ## CLI接続
 

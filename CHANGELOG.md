@@ -2,6 +2,8 @@
 
 ## 0.11.0 — 未リリース
 
+- Antigravity CLI 1.4.12の画像読取イベント `read_file` / `Path` に対応。従来の `view_file` / `AbsolutePath` も受理し、全画像の絶対パス・完了状態・エラーなしの確認を維持します。GPT-6.1 SolとGemini 4 Argon（Medium）の2画像比較を追加し、旧GPT-6 Solを比較対象から外しました。
+
 - 要求したEffort levelを `GenerationPlan.reasoning_effort` と成功・生成失敗の `GenerationRecord.reasoning_effort` に追加。CLIの通常表示とJSON、Python APIで取得できます。未指定・旧記録は `null` とし、接続先の実際の採用値を推測しません。既存の `--reasoning-effort` / `load_profile(..., overrides={...})` による指定方法をREADMEと参照仕様へ追加し、設定の上書き・接続先への引き渡し・戻り値を回帰テストで確認します。
 
 - Copilot CLI 1.0.105の引数契約に対応。1.0.103で廃止された `--no-remote` を除去し、非対話実行ではリモート制御が利用できない公式仕様に基づき代替操作は追加しません。履歴同期の抑止は `--no-remote-export` から現行の `--sync-session=off` へ置換。旧CLIの互換保証・版分岐・再試行は追加しません。

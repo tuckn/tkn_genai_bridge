@@ -74,7 +74,7 @@ Copilotは0.10.0以降で対応し、一時画像をCLIの `--attachment` で渡
 
 `plan()` は画像を保存・送信しません。Codex・Copilot・Antigravity実行時は専用の一時フォルダへ連番で画像を保存し、成功・失敗後に削除します。
 Claude Codeはbase64画像ブロックを標準入力の `stream-json` で渡し、画像の一時保存は行いません。
-Antigravityは一時画像の絶対パスを指示し、`view_file` の完了イベントを全画像について確認します。
+Antigravityは一時画像の絶対パスを指示し、`view_file`（`AbsolutePath`）または `read_file`（`Path`）の完了イベントを全画像について確認します。
 確認できない場合は `ProviderError(code="image_read_failed")` となり、取得済みの利用量は失敗記録に保持します。
 これは画像読取の完了確認であり、回答の認識精度を検証するものではありません。CLI独自の履歴・保持方針は各サービスに従います。
 API接続は画像をbase64化して要求内に含め、外部URLから取得しません。`local_only` の制約は画像にも適用されます。

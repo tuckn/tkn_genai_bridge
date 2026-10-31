@@ -377,10 +377,17 @@ def _require_antigravity_image_reads(stdout: str, paths: list[Path]) -> None:
         if not isinstance(step, dict) or step.get("state") != "DONE":
             continue
         info = step.get("tool_info")
-        if not isinstance(info, dict) or info.get("name") != "view_file" or info.get("error"):
+        if not isinstance(info, dict) or info.get("error"):
+            continue
+        # agy 1.4.12 reports image reads as read_file / Path.
+        name = info.get("name")
+        if not isinstance(name, str):
+            continue
+        path_key = {"view_file": "AbsolutePath", "read_file": "Path"}.get(name)
+        if path_key is None:
             continue
         parameters = info.get("parameters")
-        path = parameters.get("AbsolutePath") if isinstance(parameters, dict) else None
+        path = parameters.get(path_key) if isinstance(parameters, dict) else None
         if isinstance(path, str) and os.path.isabs(path):
             remaining.discard(os.path.normcase(os.path.normpath(path)))
     if remaining:

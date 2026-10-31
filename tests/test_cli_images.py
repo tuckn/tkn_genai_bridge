@@ -136,8 +136,14 @@ def test_claude_process_failure_keeps_stream_usage(timeout, tmp_path, monkeypatc
     assert exc.value.metadata.usage.known_subtotal.input_tokens == 12
 
 
-@pytest.mark.parametrize("outcome", ["success", "timeout", "missing", "error", "wrong-path"])
-def test_antigravity_snapshots_read_receipts_and_cleanup(outcome, request_object, monkeypatch):
+@pytest.mark.parametrize("tool_name,path_key", [("view_file", "AbsolutePath"), ("read_file", "Path")])
+@pytest.mark.parametrize(
+    "outcome",
+    ["success", "timeout", "missing", "error", "wrong-path", "active", "tool-error", "relative"],
+)
+def test_antigravity_snapshots_read_receipts_and_cleanup(
+    outcome, tool_name, path_key, request_object, monkeypatch
+):
     request = request_with_images(request_object)
     paths = []
 
@@ -157,14 +163,15 @@ def test_antigravity_snapshots_read_receipts_and_cleanup(outcome, request_object
                 {
                     "event": "step_update",
                     "step_update": {
-                        "state": "ERROR" if outcome == "error" else "DONE",
+                        "state": {"error": "ERROR", "active": "ACTIVE"}.get(outcome, "DONE"),
                         "step_type": "tool",
                         "tool_info": {
-                            "name": "view_file",
+                            "name": tool_name,
+                            "error": "read failed" if outcome == "tool-error" else None,
                             "parameters": {
-                                "AbsolutePath": str(cwd / "other.jpg")
+                                path_key: str(cwd / "other.jpg")
                                 if outcome == "wrong-path"
-                                else str(path)
+                                else path.name if outcome == "relative" else str(path)
                             },
                         },
                     },
