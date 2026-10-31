@@ -1,8 +1,8 @@
-# 共有設定の仕様
+# Bridge 設定の仕様
 
 ## 設定の読み込み
 
-補助CLIは次の順で読み、後の値を優先します。
+補助CLIは既定で次の順で読み、後の値を優先します。
 
 1. 組み込み既定値
 2. `~/.tkn/genai_bridge/config.yaml`
@@ -10,7 +10,7 @@
 4. `--config` で明示したファイル
 5. `--profile`、`--model` などの個別オプション
 
-`--no-project-config` で3番を省略できます。
+`--no-user-config` で2番、`--no-project-config` で3番をそれぞれ独立に省略できます。
 各設定ファイルは共通パッケージのスキーマで書いてください。
 アプリ固有の設定ファイルを `--config` に指定すると、未知のキーを検出して停止します。
 
@@ -19,6 +19,73 @@
 `load_config(include_project=True)` の場合は5段階の解決を使えます。
 `load_profile(..., overrides={...})` の上書きは1つのプロファイルのフィールドが対象です。
 `load_config(overrides={...})` は設定全体の構造で指定します。
+
+### 共有設定とアプリ専用設定の選択
+
+`load_config()` と `load_profile()` は `include_user: bool = True` を受け付けます。
+`False` にするとユーザー共通設定を読み込み対象から除外し、読み取り・YAML解析・スキーマ検証を行いません。
+`load_config()` の `include_project: bool = False` は独立した指定です。
+`load_profile()` は常に CWD 設定を読みません。
+
+| 指定 | 契約 |
+| --- | --- |
+| `config_file=Path(...)` / `--config PATH` | 最後に読む明示ファイル。指定だけでは共有設定・CWD設定の扱いは変わらない |
+| `include_user=False` / `--no-user-config` | ユーザー共通設定を省略。組み込み既定値は維持 |
+| `include_project=False` / `--no-project-config` | CWD 設定を省略。Python API では既定、CLI では明示が必要 |
+| `load_config(user_file=Path(...))` | ユーザー設定層のパスを置換。追加の明示ファイルではなく、従来どおり未存在なら省略 |
+| `user_file=...` と `include_user=False` | `ConfigError(code="invalid_config")`。読み取り前に競合を拒否し、`user_file` を黙って無視しない |
+| `user_file=...` と `config_file=...` | `include_user=True` なら両方を読み、後者を優先。従来どおり |
+
+`user_file` は `load_config()` だけの引数です。専用設定には必須ファイルとして扱う `config_file` を使ってください。
+`config_file` の指定は `include_user=False` の必須条件ではありません。
+外部ファイルを指定せず両設定層を無効にした場合は、組み込み既定値と `overrides` だけを使用します。
+相対パスは `load_config(cwd=...)`、省略時は実行時 CWD が基準です。`~` は展開します。
+利用側アプリが専用設定の絶対パスを管理すれば、起動ディレクトリに依存しません。
+
+共有設定を使う既存の呼び出し方は変わりません。
+
+```python
+from pathlib import Path
+from tkn_genai_bridge import load_config, load_profile
+
+shared = load_config()
+profile = load_profile("codex-default")
+# 明示ファイルだけの指定は、従来どおり共有設定への追加マージ
+merged = load_config(config_file=Path("C:/path/to/extra.yaml"))
+```
+
+アプリ専用ファイルだけを読む場合は、次のように指定します。
+
+```python
+app_config = Path("C:/path/to/your_cli/bridge.yaml")
+resolved = load_config(
+    config_file=app_config,
+    include_user=False,
+    include_project=False,
+    overrides={"profiles": {"codex-default": {"model": "your-model"}}},
+)
+profile = load_profile(
+    "codex-default", config_file=app_config, include_user=False,
+    overrides={"model": "your-model"},
+)
+```
+
+```shell
+# 共有設定を使用（CWD 設定を省略）
+tkn-genai-bridge config list --no-project-config
+
+# アプリ専用設定だけを読み、設定確認とオフライン計画を実行
+tkn-genai-bridge config list --config "C:/path/to/your_cli/bridge.yaml" --no-user-config --no-project-config --json
+tkn-genai-bridge generate --config "C:/path/to/your_cli/bridge.yaml" --no-user-config --no-project-config --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
+```
+
+この構成では共有設定と CWD 設定が不正な YAML・未対応スキーマ・未知の項目を含んでいても影響しません。
+それらのファイルにしか存在しないプロファイルは `unknown_profile` になります。
+明示ファイルが存在しない場合は `missing_config`、読めない・不正な場合は `invalid_config`、
+未対応のスキーマ版は `unsupported_schema` で停止し、共有設定にはフォールバックしません。
+組み込みプロファイルは引き続き使用できます。
+
+### マージと設定元の表示
 
 入れ子のマッピングは再帰的に統合し、値と `null` は置き換えます。
 プロバイダーを変更するときは、前のプロバイダー専用設定を `null` にするか、新しいプロファイルを作成してください。
@@ -29,6 +96,10 @@
 読み込んだ設定元と各ファイルのスキーマ版、移行の有無（`sources`）、
 各項目を採用した設定元（`field_sources`）を表示します。
 有効なスキーマ版は `settings.schema_version`、通常の設定ファイルの場所は `user_config_path` です。
+`user_config_path` は標準の保存先の案内であり、読み込みの有無を示しません。
+省略した設定層は `sources` と `field_sources` に現れません。
+専用設定だけの場合の `sources` は `built-in`、`explicit`、上書きがあれば `options` の順です。
+`field_sources` は各フィールドの採用元を示し、外部ファイルに省略された既定値は `built-in` のままです。
 
 既定の標準出力は `git config --list` のような1行1項目の `key=value` です。
 入れ子のマッピングはドット、配列は `[0]` などの添字で表し、空の配列・マッピングは `[]`・`{}`、

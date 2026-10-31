@@ -166,17 +166,27 @@ class ResolvedConfig:
 def load_config(
     *,
     config_file: Path | None = None,
+    include_user: bool = True,
     include_project: bool = False,
     cwd: Path | None = None,
     user_file: Path | None = None,
     overrides: dict[str, Any] | None = None,
 ) -> ResolvedConfig:
-    """Library default: shared config + explicit file, excluding an application's CWD config."""
+    """Merge enabled layers; disable include_user for an application-owned config_file.
+
+    Project config is opt-in independently. user_file replaces the shared user
+    path and cannot be combined with include_user=False. Explicit files are
+    always required; disabled layers are never read or validated.
+    """
+    if not include_user and user_file is not None:
+        raise ConfigError("user_file cannot be combined with include_user=False", code="invalid_config")
     current = (cwd or Path.cwd()).resolve()
     merged = RuntimeConfig().model_dump()
     sources = [ConfigSource("built-in", None, SCHEMA_VERSION)]
     winners = dict.fromkeys(_leaves(merged), "built-in")
-    paths = [("user", user_file if user_file is not None else user_config_path(), False)]
+    paths = []
+    if include_user:
+        paths.append(("user", user_file if user_file is not None else user_config_path(), False))
     if include_project:
         paths.append(("project", current / ".tkn" / "config.yaml", False))
     if config_file is not None:
@@ -220,9 +230,11 @@ def load_profile(
     name: str | None = None,
     *,
     config_file: Path | None = None,
+    include_user: bool = True,
     overrides: dict[str, Any] | None = None,
 ) -> Profile:
-    profile = load_config(config_file=config_file).profile(name)
+    """Load a profile without CWD config; optionally skip shared user config too."""
+    profile = load_config(config_file=config_file, include_user=include_user).profile(name)
     if not overrides:
         return profile
     _fragment(overrides, Profile)

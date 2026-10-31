@@ -59,8 +59,9 @@ JSONの型・キーを機械処理用の契約とします。通常一覧は同�
 - 画像の読込・形式エラー: `image: string`。
 - 実行・入力モデル検証: `prompt_file`、`schema_file`、`images: array[string]`。
 - 設定作成: `config_file: string`。
-- 設定読込: `user_config`、必要に応じ `project_config`、明示した `config_file: string`。
+- 設定読込: 有効な設定層の `user_config`、`project_config`、明示した `config_file: string`。
   これは読み込み候補の一覧であり、すべてが存在する／不正であるという意味ではありません。
+  `--no-user-config` / `--no-project-config` で省略した層のパスは含みません。
 - 引数解析失敗など、対象を確定できない場合は `paths` を付けません。
 
 予期しない例外は `runtime_error` と内容を含まないメッセージを返し、秘密情報が含まれ得る例外本文・tracebackを出しません。

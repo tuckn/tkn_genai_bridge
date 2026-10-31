@@ -56,7 +56,14 @@ def _common(parser: argparse.ArgumentParser) -> None:
 
 
 def _settings(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--config", type=Path, help="追加で読み込む共有設定ファイル")
+    parser.add_argument(
+        "--config", type=Path, help="明示して読み込む Bridge 設定ファイル（既定は追加マージ）"
+    )
+    parser.add_argument(
+        "--no-user-config",
+        action="store_true",
+        help="ユーザー共通の ~/.tkn/genai_bridge/config.yaml を読み込まない",
+    )
     parser.add_argument(
         "--no-project-config", action="store_true", help="CWD の .tkn/config.yaml を読み込まない"
     )
@@ -123,7 +130,11 @@ def parser() -> argparse.ArgumentParser:
 
 
 def _resolved(args: argparse.Namespace) -> Any:
-    arguments = {"config_file": args.config, "include_project": not args.no_project_config}
+    arguments = {
+        "config_file": args.config,
+        "include_user": not args.no_user_config,
+        "include_project": not args.no_project_config,
+    }
     first = load_config(**arguments)
     selected = args.profile if args.profile is not None else first.config.default_profile
     # Typos must not implicitly create a profile from built-in defaults.
@@ -151,7 +162,8 @@ def _execute(args: argparse.Namespace, paths: dict[str, Any]) -> dict[str, Any]:
         return initialize_config(args.path, dry_run=args.dry_run)
 
     # On configuration errors these are candidate sources, not claims that every file is invalid.
-    paths["user_config"] = _path(user_config_path())
+    if not args.no_user_config:
+        paths["user_config"] = _path(user_config_path())
     if not args.no_project_config:
         paths["project_config"] = _path(Path.cwd() / ".tkn" / "config.yaml")
     if args.config is not None:

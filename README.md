@@ -204,6 +204,44 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 実用のプロンプトとスキーマは利用側パッケージのリソースに置いてください。
 実行できるサンプルは [examples/use_runtime.py](examples/use_runtime.py)、例外と結果の契約は [Python API](docs/reference/api.md) にあります。
 
+### アプリ専用の Bridge 設定を使う
+
+利用側アプリで Bridge の依存バージョンと設定を一緒に管理する場合は、
+`config_file` に専用ファイルを渡し、`include_user=False` を明示します。
+`load_config()` と `load_profile()` の両方に対応しています。
+
+```python
+from pathlib import Path
+from tkn_genai_bridge import load_config, load_profile
+
+# 従来どおりユーザー共通設定を使用（CWD 設定は読まない）
+shared = load_profile("codex-default")
+
+# ファイルから読むのはアプリ専用設定だけ
+app_config = Path("C:/path/to/your_cli/bridge.yaml")
+resolved = load_config(config_file=app_config, include_user=False)
+profile = load_profile(config_file=app_config, include_user=False)
+```
+
+専用ファイルにも [Bridge の設定スキーマ](docs/reference/configuration.md) を使います。
+利用側アプリ独自の設定キーを混在させず、アプリが管理する絶対パスを渡すと実行時 CWD に依存しません。
+組み込み既定値と明示的な `overrides` は適用されます。
+共有設定と CWD 設定は読み取りも検証もせず、それらにしかないプロファイルは参照できません。
+専用ファイルが存在しない・不正な場合はエラーになり、共有設定へフォールバックしません。
+`config_file` だけを指定した場合は、従来どおり共有設定に追加マージします。
+
+CLI は既定で CWD 設定も読むため、専用設定だけを使う場合は両方の省略オプションを付けます。
+以下はいずれも生成 API を呼び出さない確認です。
+
+```shell
+# ユーザー共通設定を使用（CWD 設定は省略）
+tkn-genai-bridge config list --no-project-config
+
+# アプリ専用設定だけを使用
+tkn-genai-bridge config list --config "C:/path/to/your_cli/bridge.yaml" --no-user-config --no-project-config --json
+tkn-genai-bridge generate --config "C:/path/to/your_cli/bridge.yaml" --no-user-config --no-project-config --prompt-file examples/prompt.txt --schema-file examples/output.schema.json --dry-run
+```
+
 ### Effort level（推論設定）を指定する
 
 CLIでは `--reasoning-effort`、Pythonではプロファイルの `reasoning_effort` に指定します。
@@ -292,7 +330,7 @@ Azureではモデル名の代わりにデプロイ名をキーにします。単
 
 dry-run専用の `--estimate-input-tokens` / `--estimate-output-tokens` は0以上の整数です。
 `--estimate-input-method` は入力推定値と併用し、その推定方法名を記録できます。
-設定確認と生成には `--profile`、`--model`、`--reasoning-effort`、`--timeout-seconds`、`--no-project-config` も使えます。
+設定確認と生成には `--profile`、`--model`、`--reasoning-effort`、`--timeout-seconds`、`--no-user-config`、`--no-project-config` も使えます。
 正常終了は `0`、生成・実行失敗は `1`、引数・設定・入力モデル検証エラーは `2`、中断は `130` です。
 スキーマファイルのJSON不正など、`RequestError` に該当する要求エラーは `1` です。
 

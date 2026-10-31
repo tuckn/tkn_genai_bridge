@@ -1,5 +1,19 @@
 # Python API
 
+## 設定の選択
+
+`load_config(*, config_file=None, include_user=True, include_project=False, cwd=None, user_file=None, overrides=None)`
+は解決済み設定と `sources` / `field_sources` を返します。
+`load_profile(name=None, *, config_file=None, include_user=True, overrides=None)` はプロファイルを返します。
+どちらも既定はユーザー共通設定を読み、CWD 設定を省略します。
+`load_config()` だけは `include_project=True` で CWD 設定も追加できます。
+
+アプリ専用設定だけを使うには `config_file=Path(...)` と `include_user=False` を指定します。
+組み込み既定値と明示した `overrides` は適用します。`config_file` 単独は従来の追加マージです。
+`load_config(user_file=..., include_user=False)` は競合エラーになります。
+`load_config()` の overrides は設定全体、`load_profile()` の overrides は選択したプロファイルの構造です。
+読み込み順序、エラー、Python・CLIの使用例は [設定仕様](configuration.md#共有設定とアプリ専用設定の選択) を参照してください。
+
 ## 生成とオフライン計画
 
 `Runtime(profile)` は設定を検証しますが、コンストラクターでは通信・認証・書き込みを行いません。
