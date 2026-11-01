@@ -2,7 +2,7 @@
 
 本パッケージは接続先ごとの設定を共通APIに変換します。
 各製品の認証、利用枠、モデルの可用性は統合しません。
-以下に接続方式と検証範囲を記載します。画像入力は2026年9月27日に更新しました。
+以下に接続方式と検証範囲を記載します。画像入力の確認履歴は各節に記載しています。
 
 ## LiteLLM Python SDK
 
@@ -49,7 +49,7 @@ Ollamaの事前確認も同じ契約です。秒数・HTTP日時を待機秒数�
 
 ## 画像の転送
 
-接続先とモデルの対応、実生成の確認範囲、比較方法は[VLMの対応と比較](vision.md)を参照してください。
+入力方法と対応範囲は[画像入力の対応範囲と使い方](#画像入力の対応範囲と使い方)、モデルの認識結果と使い分けは[VLM比較レポート](vision.md)を参照してください。
 
 Bridge 0.8.0からCodex・Ollama・Azure OpenAIへ複数のPNG・JPEG・WebP画像を添付できます。
 Codexでは専用一時フォルダの画像を `--image` で渡し、API接続ではテキストとbase64の `image_url` をLiteLLMへ渡します。
@@ -77,6 +77,76 @@ Claudeの[Streaming Input](https://code.claude.com/docs/en/agent-sdk/streaming-v
 Antigravityの[headless入力](https://www.antigravity.google/docs/cli/headless/)も参照。
 2026年9月27日にCodex・Claude Code・GitHub Copilot・AntigravityのCLIと、Ollamaの`local-vision`でJPEG写真・PNG画面の実認識を確認。
 Bridgeは認識内容の正しさを保証しません。2画像による探索的な[比較結果](vision.md#results)を別途記録しています。個人の全応答・正解メモはローカルに保持し、自動テストや公開資料へ含めません。
+
+## 画像入力の対応範囲と使い方
+
+### 対応の確認は3段階
+
+1. **Bridgeのアダプター**：以下の6種類は画像を渡す処理を実装しています。入力はPNG・JPEG・WebPで、1枚20 MiB以下です。
+2. **CLI・APIの経路**：接続先のCLIが画像オプションを備え、またはAPI経路とLiteLLMが画像を転送できる必要があります。Bridgeの実装と自動テストで確認した範囲を下表に示します。
+3. **選択したモデル**：同じサービス内でも画像対応、枚数・解像度の上限、利用可能なモデルは異なります。`model: null` のCLIプロファイルはCLIの既定モデルを使うため、特定のVLMを保証しません。モデルとアカウントの利用可否は実行環境で確認してください。
+
+「GPT-5以上はすべて対応」のように、モデル名の系列だけで判定しません。GitHubも[画像入力にはモデルのvision対応が必要](https://docs.github.com/en/copilot/how-tos/copilot-cli/use-copilot-cli/overview)と説明しています。API経路では[LiteLLMの画像入力形式](https://docs.litellm.ai/docs/completion/vision)と、接続先モデルの仕様の両方を確認します。Bridgeは全モデルの対応一覧を内蔵せず、`plan()` もモデルへ通信して確認しません。
+
+### 接続先の比較
+
+| 接続先・プロファイル例 | Bridgeから画像を渡す方法 | このリポジトリで確認した範囲 | モデル・利用量の記録 |
+| --- | --- | --- | --- |
+| Codex・`codex-default` | 専用一時フォルダの画像をCLIの`--image`へ渡す | JPEG写真とPNG画面で実生成を確認 | CLIが報告した値のみ。モデルIDは未取得の場合がある |
+| Claude Code・`claude-default` | 標準入力のbase64画像ブロック | 同じ2枚でBridge経由の実生成を確認 | 最終応答のモデルと利用量を取得できる場合がある |
+| GitHub Copilot・`copilot-default` | 専用一時フォルダの画像をCLIの`--attachment`へ渡す | 同じ2枚でBridge 0.10.0経由の実生成・JSON検証を確認 | 画像ありでは最終メッセージのモデルIDを取得。token利用量は未取得 |
+| Google Antigravity・`antigravity-default` | CLIに絶対パスを指示し、読取完了イベントを確認 | 同じ2枚でBridge経由の実生成と全画像の読取完了を確認 | 最終resultの利用量を取得。実モデルIDは未取得 |
+| Ollama・`local-vision` | LiteLLM経由でローカルサーバーの`messages[].images`へ渡す | 実SDKと模擬HTTP応答で画像バイト列・順序を確認。`qwen3.5:9b`によるJPEG写真・PNG画面の実生成も確認 | 接続先が報告した値のみ |
+| Azure OpenAI・画像対応デプロイ | LiteLLM経由で画像の`image_url`をAPIへ渡す | 実SDKと模擬HTTP応答で画像バイト列・順序を確認。画像付きの実モデル生成は未確認 | 接続先が報告した値のみ |
+
+接続確認は2026年9月27日、Sol 6.1／Argonの追加比較は2026年10月31日のローカル環境で行いました。各CLIの既定モデルやアカウント設定は変わり得ます。Copilotで観測した応答モデルは`claude-sonnet-5`、Claude Codeでは`claude-opus-5-5`でした。これらは当日の実行結果であり、他のモデルやアカウントの対応を示す一覧ではありません。接続確認だけから認識精度の順位は付けられません。
+
+BridgeがLiteLLMを使うのはOllamaとAzure OpenAIです。Codex・Claude Code・Copilot・Antigravityは各CLIを直接呼び出すため、これらの画像入力についてLiteLLMの対応状況は判定要素ではありません。転送の詳細は[接続仕様](providers.md#画像の転送)を参照してください。
+
+### 画像入力の使い方
+
+Python APIでは画像を読み込み、`GenerationRequest.images`へ指定順に渡します。プロファイル名の変更だけで上表の接続先を切り替えられます。
+
+```python
+from tkn_genai_bridge import GenerationRequest, ImageInput, Runtime, load_profile
+
+request = GenerationRequest(
+    prompt="画像1と画像2の配置と読める文字を説明し、不明な点も示してください。",
+    output_schema={
+        "type": "object",
+        "properties": {"summary": {"type": "string"}},
+        "required": ["summary"],
+        "additionalProperties": False,
+    },
+    images=[ImageInput.from_file("overview.png"), ImageInput.from_file("detail.png")],
+)
+with Runtime(load_profile("codex-default")) as runtime:
+    plan = runtime.plan(request)  # 通信・画像の一時保存なし
+    result = runtime.generate(request)
+print(result.data["summary"])
+```
+
+補助CLIでは`--image`を繰り返します。`--dry-run`を外すと選択した接続先へ画像を送信します。
+
+```shell
+tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/vision-prompt.txt --schema-file examples/vision-output.schema.json --image overview.png --image detail.png --dry-run
+```
+
+モデル指定例：
+
+```shell
+# generate の課題文・schema・image指定に加えるオプション
+--profile codex-default --model gpt-6.1-sol --reasoning-effort medium
+--profile codex-default --model gpt-6-astra --reasoning-effort medium
+--profile antigravity-default --model gemini-4-argon-medium --reasoning-effort medium
+--profile local-vision
+```
+
+モデル省略はCLIの既定値です。
+
+ローカル限定の画像説明には組み込みの`local-vision`を選べます。既定モデルは`qwen3.5:9b`で、Ollamaの起動とモデル取得は利用者が行います。未取得なら`ollama pull qwen3.5:9b`を実行し、`--profile local-vision`を指定します。`local_only: true`に加えて、[Ollama側のクラウド無効化](providers.md#ollama)も設定してください。初期値は`think: false`、出力上限2,048 token、コンテキスト16,384 tokenです。詳細は[接続設定](configuration.md#ollama)を参照してください。
+
+画像は読み込み時にメモリへ固定し、元ファイルは変更しません。Codex・Copilot・Antigravityでは実行時に連番の一時画像を作成し、終了時に削除します。URL取得、画像変換・自動縮小、画像生成は行いません。画像付きの事前入力token概算は既定で`null`です。記録には画像本体や元のファイル名を含めず、ハッシュ・形式・サイズを残します。契約の詳細は[Python API](api.md#画像入力)、tokenと費用は[コスト概算](costs.md#生成前の確認)を参照してください。
 
 ## CLI接続
 

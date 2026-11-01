@@ -275,7 +275,7 @@ Python APIでは `GenerationRequest.images` に `ImageInput.from_file()` で読�
 tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-file examples/vision-prompt.txt --schema-file examples/vision-output.schema.json --image overview.png --image detail.png --dry-run
 ```
 
-対応する接続先、モデルの選び方、確認済みの範囲、ローカル限定の `local-vision`、比較方法は[VLMの対応と比較](docs/reference/vision.md)を参照してください。
+画像の渡し方・対応範囲・ローカル限定の `local-vision` は[接続仕様](docs/reference/providers.md#画像入力の対応範囲と使い方)、モデル別の認識結果と使い分けは[VLM比較レポート](docs/reference/vision.md)を参照してください。
 
 ### 既存の生成処理を置き換える
 
@@ -440,7 +440,7 @@ uv build
 - [設定仕様と接続プロファイル例](docs/reference/configuration.md)
 - [CLI出力・終了コード](docs/reference/cli-output.md)
 - [Python API・失敗時の扱い](docs/reference/api.md)
-- [VLMの対応と比較](docs/reference/vision.md)
+- [VLM比較レポート・モデルの使い分け](docs/reference/vision.md)
 - [token・コスト概算と単価設定](docs/reference/costs.md)
 - [プロバイダーごとの接続仕様と公式資料](docs/reference/providers.md)
 - [変更履歴](CHANGELOG.md)
