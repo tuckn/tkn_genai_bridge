@@ -1,6 +1,6 @@
-# tkn-genai-bridge: Tkn GenAI Bridge — Python CLI 共通の生成AI呼び出し
+# Tkn GenAI Bridge — Python CLI 共通の生成AI呼び出し
 
-Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
+`tkn-genai-bridge` は、Python で作成した複数の CLI から、同じ API と接続設定で生成AIを呼び出すためのパッケージです。
 プロンプトと JSON Schema を渡すと、検証済みの JSON オブジェクトと、モデル・利用量・実行時間の情報を返します。
 6種類の接続先で画像入力に対応します。[VLM比較結果](docs/reference/vision.md)に、料理写真・Excel画面のモデル別の認識結果、誤認例、所要時間をまとめています。
 生成前のtoken概算と、設定した参考単価によるコスト概算も通信なしで計算できます。
