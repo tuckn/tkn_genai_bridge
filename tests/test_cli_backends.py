@@ -1,5 +1,8 @@
 import json
+import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -318,3 +321,104 @@ def test_claude_example_schema_omits_only_root_dialect_and_keeps_validation(monk
     assert record.usage.input_tokens == 3
     assert request.output_schema == original
     assert schema == original
+
+
+@pytest.mark.parametrize("provider", ["claude-code", "codex", "github-copilot", "antigravity", None])
+def test_only_claude_child_disables_auto_memory(provider, tmp_path, monkeypatch):
+    monkeypatch.delenv("CLAUDE_CODE_DISABLE_AUTO_MEMORY", raising=False)
+    monkeypatch.setenv("TKN_BRIDGE_TEST_INHERITED", "kept")
+    script = (
+        "import json, os; print(json.dumps([os.environ.get(name) for name in "
+        "('CLAUDE_CODE_DISABLE_AUTO_MEMORY', 'TKN_BRIDGE_TEST_INHERITED')]))"
+    )
+    output = cli.run_process([sys.executable, "-c", script], "", tmp_path, 10, provider=provider)
+    # Other providers inherit the environment unchanged; the parent is never modified.
+    assert json.loads(output) == ["1" if provider == "claude-code" else None, "kept"]
+    assert "CLAUDE_CODE_DISABLE_AUTO_MEMORY" not in os.environ
+
+
+def make_link(target, link):
+    if sys.platform == "win32":
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(link))
+    else:
+        link.symlink_to(target, target_is_directory=True)
+
+
+def test_generation_removes_folders_left_by_ended_processes(request_object, tmp_path, monkeypatch):
+    root = Path(tempfile.gettempdir())  # Isolated per test by conftest.
+    ended, running = 4_000_001, 4_000_002
+    abandoned = root / f"tkn-genai-bridge-pid{ended}-abc_1234"
+    abandoned.mkdir()
+    (abandoned / "image-0001.png").write_bytes(b"private image")
+    kept = [
+        root / f"tkn-genai-bridge-pid{running}-live0000",  # Its creator still runs.
+        root / f"tkn-genai-bridge-pid{os.getpid()}-own00000",  # This process may still use it.
+        root / "tkn-genai-bridge-abcd1234",  # An older name without the creating process.
+        root / f"tkn-genai-bridge-pid0{ended}-zero0000",
+        root / f"other-tool-pid{ended}-abcd1234",
+    ]
+    for folder in kept:
+        folder.mkdir()
+        (folder / "keep.txt").write_text("keep", encoding="utf-8")
+    not_folder = root / f"tkn-genai-bridge-pid{ended}-file0000"
+    not_folder.write_text("keep", encoding="utf-8")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("keep", encoding="utf-8")
+    make_link(outside, root / f"tkn-genai-bridge-pid{ended}-link0000")
+    monkeypatch.setattr(cli, "_process_exists", lambda pid: pid != ended)
+    monkeypatch.setattr(cli, "_abandoned_folders_checked_by", None)
+    folders = []
+
+    def run(command, prompt, cwd, timeout, **kwargs):
+        folders.append(cwd)
+        return json.dumps({"structured_output": {"summary": "ok"}, "is_error": False})
+
+    monkeypatch.setattr(cli, "run_process", run)
+    runtime = Runtime(Profile(provider="claude-code", cli=CliSettings(executable=sys.executable)))
+    runtime.generate(request_object)
+    assert not abandoned.exists()
+    assert all((folder / "keep.txt").is_file() for folder in kept)
+    assert not_folder.is_file() and (outside / "keep.txt").is_file()
+    assert folders[0].parent == root
+    assert folders[0].name.startswith(f"tkn-genai-bridge-pid{os.getpid()}-")
+    assert not folders[0].exists()
+    # The check runs once per process, not before every call.
+    abandoned.mkdir()
+    runtime.generate(request_object)
+    assert abandoned.exists()
+    # A forked child inherits the state of its parent but has its own ID, so it checks again.
+    monkeypatch.setattr(cli, "_abandoned_folders_checked_by", os.getpid() + 1)
+    runtime.generate(request_object)
+    assert not abandoned.exists()
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    [(ProcessLookupError, False), (PermissionError, True), (OverflowError, True)],
+)
+def test_posix_process_check_keeps_folders_when_uncertain(error, expected, monkeypatch):
+    def kill(pid, signal):
+        assert signal == 0
+        raise error()
+
+    monkeypatch.setattr(cli.sys, "platform", "linux")
+    monkeypatch.setattr(cli.os, "kill", kill)
+    # 2**31 does not fit a signed 32-bit pid_t; os.kill then raises OverflowError.
+    assert cli._process_exists(2**31) is expected
+
+
+def test_process_exists_reports_running_and_ended_processes():
+    assert cli._process_exists(os.getpid())
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        assert cli._process_exists(child.pid)
+    finally:
+        child.kill()
+        child.wait()
+    # The Popen object keeps the ended process, so its ID is not reused during this check.
+    assert not cli._process_exists(child.pid)
+    # Values that cannot be checked count as running, so nothing is deleted for them.
+    assert cli._process_exists(0) and cli._process_exists(2**40)

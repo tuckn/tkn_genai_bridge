@@ -152,6 +152,8 @@ tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-f
 
 CLIはシェルを経由せず、引数配列とUTF-8標準入力で起動します。
 利用側の作業ディレクトリを渡さず、実行専用の一時ディレクトリを使います。
+一時ディレクトリの名前には作成したプロセスIDを含めます。
+強制終了で削除されずに残った一時ディレクトリは、作成したプロセスの終了を確かめてから、次のプロセスの最初のCLI呼び出しで削除します。
 プロンプトをプロセスの引数へ含めません。
 Claude Code のスキーマは製品仕様に合わせて引数へ渡すため、OSのコマンド長制限を受けます。
 Claude Code 2.1.282でルートのDraft 2020-12宣言が拒否されることを確認したため、
@@ -169,6 +171,8 @@ CLIへ渡すコピーからルートの `$schema` だけを省略します。
 
 Codex のユーザー設定は読みませんが、認証には通常の CODEX_HOME を使います。
 Claude Code は一時フォルダの project 設定だけを読みます。
+Claude Code には環境変数 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` を渡し、auto memoryを無効にします。
+Claude Codeは起動フォルダごとに `~/.claude/projects` へauto memory用のフォルダを作るため、無効にしないと呼び出しごとに空のフォルダが増えます。
 Copilot と Antigravity のユーザー設定由来のMCP・拡張など、製品側の機能を完全に隔離する契約はありません。
 Antigravity は通常のユーザー認証・設定を使い、ツールを完全には無効化しません。
 計画モード・サンドボックスの制限は agy が適用し、Bridgeはユーザーの権限設定を変更しません。

@@ -6,8 +6,10 @@ import base64
 import json
 import os
 import platform
+import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -21,6 +23,84 @@ from ..models import CLI_EXECUTABLES, GenerationRequest, Profile, ResponseMetada
 from ..usage import summarize_usage
 from ..validation import parse_object
 from .base import ProviderResponse, model_name, number, preserve_metadata
+
+# Each invocation works in its own private folder. The creating process ID in the
+# name lets a later run remove a folder that a forced termination left behind,
+# because termination skips the TemporaryDirectory cleanup.
+_FOLDER_PREFIX = "tkn-genai-bridge-pid"
+_FOLDER_NAME = re.compile(r"tkn-genai-bridge-pid([1-9][0-9]{0,9})-[a-z0-9_]+")
+# The process that last checked; a forked child has its own ID and checks again.
+_abandoned_folders_checked_by: int | None = None
+
+
+def _process_exists(pid: int) -> bool:
+    """Report whether the process may still run; an uncertain answer counts as running."""
+    if pid == os.getpid() or not 0 < pid <= 0xFFFFFFFF:
+        return True
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ctypes.get_last_error() != 87  # ERROR_INVALID_PARAMETER: no such process
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return True
+            return code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except (OSError, OverflowError):  # OverflowError: the ID does not fit this platform's pid_t.
+        return True
+    return True
+
+
+def _remove_abandoned_folders() -> None:
+    """Once per process, delete private folders whose creating process has ended."""
+    global _abandoned_folders_checked_by
+    if _abandoned_folders_checked_by == os.getpid():
+        return
+    _abandoned_folders_checked_by = os.getpid()
+    try:
+        with os.scandir(tempfile.gettempdir()) as entries:
+            candidates = [
+                (entry, int(match.group(1)))
+                for entry in entries
+                if (match := _FOLDER_NAME.fullmatch(entry.name))
+            ]
+    except OSError:
+        return
+    for entry, pid in candidates:
+        try:
+            info = entry.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        # Delete only plain folders; skip links and junctions so the deletion stays in this area.
+        reparse = getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+        if stat.S_ISDIR(info.st_mode) and not reparse and not _process_exists(pid):
+            shutil.rmtree(entry.path, ignore_errors=True)
+
+
+def _child_environment(provider: str | None) -> dict[str, str] | None:
+    """Return the environment for the provider process, or None to inherit it unchanged."""
+    if provider != "claude-code":
+        return None
+    # Claude Code creates ~/.claude/projects/<working folder>/memory/ for auto memory,
+    # even without session persistence. Every call starts in a new private folder,
+    # so each call would otherwise leave another empty project folder behind.
+    return {**os.environ, "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}
 
 
 def _resolve_windows_copilot_shim(shim: Path) -> str:
@@ -228,6 +308,7 @@ def run_process(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=cwd,
+            env=_child_environment(provider),
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -484,7 +565,8 @@ class CliBackend:
     def generate(self, profile: Profile, request: GenerationRequest) -> ProviderResponse:
         validate_image_provider(profile.provider, request.images)
         executable = resolve_executable(profile)
-        with tempfile.TemporaryDirectory(prefix="tkn-genai-bridge-") as folder:
+        _remove_abandoned_folders()
+        with tempfile.TemporaryDirectory(prefix=f"{_FOLDER_PREFIX}{os.getpid()}-") as folder:
             cwd = Path(folder)
             command = [executable]
             prompt = request.prompt
