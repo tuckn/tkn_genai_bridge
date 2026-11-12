@@ -6,6 +6,8 @@
 
 - 専用一時フォルダの名前に作成したプロセスIDを含め、プロセスごとの最初のCLI呼び出しで、作成したプロセスが終了済みのフォルダを削除。強制終了ではPythonの後片付けが動かず、画像を含む一時フォルダが残っていました。プロセスIDを含まない旧形式のフォルダは作成元を判定できないため削除しません。利用側で古いBridgeコミットを固定している場合は、この修正を含むコミットへ依存を更新してください。
 
+- 利用側アプリの推奨構成を、Bridge の共有設定を読まずにアプリ自身の設定（例: `genai_profiles`）から `Profile` を作り、`Runtime(profile, profile_name=...)` へ直接渡す方式に変更。README・Python API・接続仕様の例と `examples/use_runtime.py` を `load_profile()` に依存しない形へ更新し、利用側アプリだけのインストールで動作する構成を説明します。`load_config()` / `load_profile()` と設定スキーマ1.1.0は変更しません。
+
 - `load_config()` / `load_profile()` に `include_user=False`、CLIに `--no-user-config` を追加。CLIでは `--no-project-config` と併用し、`config_file` / `--config` のアプリ専用設定だけを読み込めます。省略した層は読み取り・検証せず、設定元にも含めません。明示ファイルの欠落・不正はエラーになり、共有設定へフォールバックしません。既定の追加マージは維持し、`user_file` と `include_user=False` の併用は拒否します。設定スキーマ・依存パッケージ版は変更しません。
 
 - Antigravity CLI 1.4.12の画像読取イベント `read_file` / `Path` に対応。従来の `view_file` / `AbsolutePath` も受理し、全画像の絶対パス・完了状態・エラーなしの確認を維持します。GPT-6.1 SolとGemini 4 Argon（Medium）の2画像比較を追加し、旧GPT-6 Solを比較対象から外しました。

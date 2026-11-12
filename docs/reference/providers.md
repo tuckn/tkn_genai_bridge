@@ -105,10 +105,10 @@ BridgeがLiteLLMを使うのはOllamaとAzure OpenAIです。Codex・Claude Code
 
 ### 画像入力の使い方
 
-Python APIでは画像を読み込み、`GenerationRequest.images`へ指定順に渡します。プロファイル名の変更だけで上表の接続先を切り替えられます。
+Python APIでは画像を読み込み、`GenerationRequest.images`へ指定順に渡します。`Profile`の`provider`などを変えるだけで上表の接続先を切り替えられます。
 
 ```python
-from tkn_genai_bridge import GenerationRequest, ImageInput, Runtime, load_profile
+from tkn_genai_bridge import GenerationRequest, ImageInput, Profile, Runtime
 
 request = GenerationRequest(
     prompt="画像1と画像2の配置と読める文字を説明し、不明な点も示してください。",
@@ -120,7 +120,7 @@ request = GenerationRequest(
     },
     images=[ImageInput.from_file("overview.png"), ImageInput.from_file("detail.png")],
 )
-with Runtime(load_profile("codex-default")) as runtime:
+with Runtime(Profile(provider="codex"), profile_name="codex-default") as runtime:
     plan = runtime.plan(request)  # 通信・画像の一時保存なし
     result = runtime.generate(request)
 print(result.data["summary"])

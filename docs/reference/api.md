@@ -1,6 +1,13 @@
 # Python API
 
-## 設定の選択
+## 接続プロファイルの作成
+
+`Profile(...)` または `Profile.model_validate(settings)` で作った接続プロファイルは、Bridge の設定ファイルを読みません。
+利用側アプリは自身の設定（例: `genai_profiles`）から `Profile` を作り、`Runtime(profile, profile_name=name)` に渡します。
+共有設定・CWD 設定の有無や内容に影響されず、利用側アプリだけのインストールで動作します。
+設定例と注意点は [README](../../README.md#利用側アプリの設定に接続先を持たせる) を参照してください。
+
+## 設定ファイルの選択
 
 `load_config(*, config_file=None, include_user=True, include_project=False, cwd=None, user_file=None, overrides=None)`
 は解決済み設定と `sources` / `field_sources` を返します。
@@ -132,7 +139,7 @@ API接続は画像をbase64化して要求内に含め、外部URLから取得�
 
 `bridge_version`、`profile_name`、`generation_settings_sha256` と `reasoning_effort` は `GenerationPlan` にも含まれます。
 `reasoning_effort` は成功記録と、`GenAIError.record` の生成失敗記録で同じ設定値を保持します。
-`load_profile(..., overrides={"reasoning_effort": "high"})` または `Profile(reasoning_effort="high")` で指定できます。
+`Profile(reasoning_effort="high")` または `load_profile(..., overrides={"reasoning_effort": "high"})` で指定できます。
 未指定時に接続先の既定値を補完しません。Ollama専用の `ollama.think` はこの値へ変換しません。
 `load_profile()` / `load_config().profile()` で得た `Profile.profile_name` は、設定の上書き後も保持します。
 名前は設定項目には追加されず、プロファイルの `model_dump()` には含めません。

@@ -37,11 +37,12 @@ sequenceDiagram
 
 以下の矢印は呼び出し関係です。
 接続プロファイルはモデル・接続先・認証方法をまとめた設定で、出力内容を定義するプロンプトやスキーマとは別に管理します。
+利用側アプリは、自身の設定に持つ接続プロファイルを `Profile` として渡します。Bridge の設定ファイルは、補助CLIと共有設定を選んだ場合だけ読みます。
 
 ```mermaid
 flowchart LR
     A["Python CLI"] --> B["本Bridge"]
-    C["共有接続プロファイル"] --> B
+    C["接続プロファイル（Profile）"] --> B
     B --> D["CLI: Codex / Claude Code / Copilot / agy"]
     B --> E["LiteLLM Python SDK"]
     E --> G["Ollama / Azure OpenAI"]
@@ -173,8 +174,9 @@ uv run python -c "import tkn_genai_bridge; print(tkn_genai_bridge.__version__)"
 ### 最小の呼び出しコード
 
 ```python
-from tkn_genai_bridge import GenerationRequest, Runtime, load_profile
+from tkn_genai_bridge import GenerationRequest, Profile, Runtime
 
+profile = Profile(provider="codex")  # 認証済みの Codex CLI と既定モデルを使用
 request = GenerationRequest(
     prompt="「火曜日に公開し、金曜日に意見を確認する」を一文で要約してください。",
     output_schema={
@@ -184,7 +186,7 @@ request = GenerationRequest(
         "additionalProperties": False,
     },
 )
-with Runtime(load_profile("codex-default")) as runtime:
+with Runtime(profile, profile_name="codex-default") as runtime:
     print(runtime.plan(request).model_dump())  # 通信せずに検証
     result = runtime.generate(request)  # 生成AIを呼び出す
 print(result.data["summary"])
@@ -196,16 +198,64 @@ Azureの認証オブジェクトを再利用し、終了時に解放します。
 失敗時も、取得済みのモデル情報・利用量は `GenAIError.record` から確認できます。
 記録と dry-run の結果には、Bridgeのバージョン、使用プロファイル名、認証情報を除く生成条件のハッシュが含まれます。
 
-ライブラリの `load_profile()` は共有設定と明示された追加ファイルを読み込みます。
-利用側CLIの `./.tkn/config.yaml` は自動では読みません。
-利用側で `genai_profile` などの選択項目を定義し、その値を `load_profile()` に渡してください。
-その回だけの変更は `load_profile("codex-default", overrides={"model": "your-model"})` のように指定できます。
+`Profile` を直接作ると、Bridge の設定ファイルは読み取りも検証もしません。
+利用側アプリは Bridge の `config init` なしで動作します。
+利用者が接続先を選べるようにする場合は、次の「[利用側アプリの設定に接続先を持たせる](#利用側アプリの設定に接続先を持たせる)」を参照してください。
 
 実用のプロンプトとスキーマは利用側パッケージのリソースに置いてください。
 実行できるサンプルは [examples/use_runtime.py](examples/use_runtime.py)、例外と結果の契約は [Python API](docs/reference/api.md) にあります。
 
-### アプリ専用の Bridge 設定を使う
+### 利用側アプリの設定に接続先を持たせる
 
+利用側アプリを単独のインストールで動作させるには、接続先・モデルをアプリ自身の設定ファイルに定義します。
+検証した `Profile` を `Runtime` へ直接渡すため、共有設定 `~/.tkn/genai_bridge/config.yaml` と CWD 設定は読みません。
+利用者は Bridge の設定ファイルを作る必要がなく、アプリの設定だけで接続先を確認・変更できます。
+tkn 系の利用側アプリは、設定ファイルのトップレベル `genai_profiles` に接続先を定義し、生成の設定の `genai_profile` で名前を選びます。
+
+```yaml
+# 利用側アプリの config.yaml の例
+genai_profiles:
+  codex-default:
+    provider: codex
+    model: null
+  claude-default:
+    provider: claude-code
+    model: null
+generation:
+  genai_profile: codex-default
+```
+
+```python
+from typing import Any
+
+from tkn_genai_bridge import Profile, Runtime
+
+
+def resolve_profile(app_config: dict[str, Any]) -> tuple[str, Profile]:
+    name = app_config["generation"]["genai_profile"]
+    try:
+        settings = app_config["genai_profiles"][name]
+    except KeyError:
+        raise ValueError(f"GenAI profile is not defined in genai_profiles: {name}") from None
+    return name, Profile.model_validate(settings)
+
+
+name, profile = resolve_profile(app_config)
+with Runtime(profile, profile_name=name) as runtime:
+    plan = runtime.plan(request)
+```
+
+- 各接続先の項目は、[設定仕様](docs/reference/configuration.md) の `profiles.<name>` 以下と同じです。`Profile.model_validate()` は未知の項目、型の誤り、接続先と矛盾する組み合わせを拒否します。
+- 組み込みの接続先（`codex-default` など）はアプリ側の既定値として定義します。未定義の名前はエラーにし、共有設定や別の接続先へフォールバックしないでください。
+- `profile_name` を渡すと、dry-run の結果と実行記録に接続先の名前が残ります。
+- `cli.executable` の相対パスは、その値を書いた設定ファイルのフォルダを基準に解決してから渡すと、実行時 CWD に依存しません。`codex` のようなコマンド名は PATH から探します。
+- 秘密値は設定ファイルに書かず、認証済み CLI や `azure.api_key_env` などの環境変数名を使います。
+- その回だけの変更は、検証前の設定に上書きしてから `Profile.model_validate()` に渡します。
+
+### Bridge の設定ファイルを使う
+
+Bridge の設定スキーマのファイルを読み込む場合は `load_config()` / `load_profile()` を使います。
+既定ではユーザー共通の共有設定を読むため、共有設定に依存してよい用途に限ります。
 利用側アプリで Bridge の依存バージョンと設定を一緒に管理する場合は、
 `config_file` に専用ファイルを渡し、`include_user=False` を明示します。
 `load_config()` と `load_profile()` の両方に対応しています。
@@ -252,16 +302,16 @@ tkn-genai-bridge generate --profile codex-default --reasoning-effort high --prom
 ```
 
 ```python
-profile = load_profile("codex-default", overrides={"reasoning_effort": "high"})
-with Runtime(profile) as runtime:
+profile = Profile(provider="codex", reasoning_effort="high")
+with Runtime(profile, profile_name="codex-high") as runtime:
     plan = runtime.plan(request)
     result = runtime.generate(request)
 print(plan.reasoning_effort)           # high
 print(result.record.reasoning_effort)  # high
 ```
 
-共有設定の `profiles.<name>.reasoning_effort` で継続的に指定することもできます。
-CLIのオプション・Pythonの `overrides` は、その呼び出しだけ設定を上書きします。
+利用側アプリの接続設定（例: `genai_profiles.<name>.reasoning_effort`）や、補助CLIの共有設定 `profiles.<name>.reasoning_effort` で継続的に指定することもできます。
+CLIのオプション・`load_profile()` の `overrides` は、その呼び出しだけ設定を上書きします。
 成功・生成失敗の実行記録とdry-run結果には、要求したEffort levelを `reasoning_effort` として返します。
 未指定は `null` で、接続先が実際に採用した値を推測・確認するものではありません。
 Ollamaは `reasoning_effort` に対応せず、専用の `ollama.think` を使います。
@@ -283,7 +333,7 @@ tkn-genai-bridge generate --no-project-config --profile codex-default --prompt-f
 入力の加工、内容・出典の検証、予算管理、保存・再開は利用側に保持します。
 
 1. 利用側の依存関係に Bridge を追加し、使用するバージョンを固定します。
-2. 接続先・モデル・認証を [接続プロファイル](docs/reference/configuration.md) に設定し、利用側から選択できるようにします。アプリ固有の設定は利用側に残します。
+2. 接続先・モデルを利用側アプリの設定（例: `genai_profiles`）に定義し、`Profile` として検証して `Runtime` へ渡します。Bridge の共有設定に依存しないため、利用側アプリだけをインストールすれば動作します。詳しくは「[利用側アプリの設定に接続先を持たせる](#利用側アプリの設定に接続先を持たせる)」を参照してください。
 3. 生成前の確認には `plan()`、本実行には `generate()` を使います。dry-run では `plan()` までにとどめ、本実行の直前に利用側の予算・回数上限を確認します。
 4. `result.data` の内容を元データと照合してから、既存の保存処理へ渡します。`result.record` と失敗時の `GenAIError.record` は、利用側の記録形式に合わせて保存します。
 5. 匿名の入力・応答で、生成結果、失敗、利用量の記録、再開動作を確認します。実サービスでの確認は送信可能な入力と費用を確認してから行い、利用側CLIを再インストールします。
